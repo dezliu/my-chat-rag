@@ -6,7 +6,7 @@
 
 | 目录 | 说明 |
 |------|------|
-| [plan/](plan/) | 架构设计、模块划分、实施计划 |
+| [plan/](plan/) | 架构设计、模块划分、各功能实施计划 |
 | [deploy/](deploy/) | 环境要求、本地启动、配置、Docker、MCP 接入 |
 | [api/](api/) | REST API 与 MCP 工具说明 |
 
@@ -25,7 +25,8 @@
 - 详细本地开发 → [deploy/local-dev.md](deploy/local-dev.md)
 - 环境变量与配置 → [deploy/configuration.md](deploy/configuration.md)
 - Docker 基础设施 → [deploy/docker.md](deploy/docker.md)
-- 架构与模块说明 → [plan/README.md](plan/README.md)
+- 架构与模块说明 → [plan/architecture-and-implementation.md](plan/architecture-and-implementation.md)
+- 用户 H5 计划 → [plan/chat-h5.md](plan/chat-h5.md)
 - API 接口列表 → [api/README.md](api/README.md)
 
 ## 服务端口一览
@@ -34,6 +35,7 @@
 |------|------|------|
 | 后端 API | 8080 | Spring Boot 主服务 |
 | 管理前端 | 3000 | Docker: Nginx / 本地: Vite dev |
+| 用户 H5 | 3001 | Docker: Next.js / 本地: `npm run dev` |
 | MySQL | 3306 | 元数据存储 |
 | Redis | 6379 | 会话缓存 |
 | Qdrant HTTP | 6333 | 向量库 REST / Dashboard |
@@ -42,7 +44,7 @@
 ## Docker 快速命令
 
 ```bash
-# 完整应用（5 容器）
+# 完整应用（6 容器）
 cp .env.example .env && docker compose up -d --build
 
 # 仅基础设施（3 容器，本地开发用）

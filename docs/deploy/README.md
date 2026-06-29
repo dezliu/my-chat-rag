@@ -21,8 +21,9 @@
 
 ```bash
 cp .env.example .env          # 填入 AI_DASHSCOPE_API_KEY
-docker compose up -d --build  # 启动 5 个容器
+docker compose up -d --build  # 启动 6 个容器
 # 管理后台: http://localhost:3000
+# 用户 H5:   http://localhost:3001
 ```
 
 详见 **[docker-run.md](docker-run.md)**。
@@ -38,6 +39,9 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export $(grep -v '^#' .env | xargs)
 mvn -pl myrag-server spring-boot:run               # 终端 1
 cd admin-web && npm install && npm run dev         # 终端 2
+
+# 用户 H5（新终端）
+cd chat-h5 && npm install && npm run dev           # 终端 3，http://localhost:3001
 ```
 
 详见 **[quickstart.md](quickstart.md)**。
@@ -46,7 +50,7 @@ cd admin-web && npm install && npm run dev         # 终端 2
 
 | 文件 | 启动的服务 | 用途 |
 |------|-----------|------|
-| `docker-compose.yml` | mysql + redis + qdrant + **server** + **admin-web**（5 个） | Docker 完整部署 |
+| `docker-compose.yml` | mysql + redis + qdrant + **server** + **admin-web** + **chat-h5**（6 个） | Docker 完整部署 |
 | `docker-compose.infra.yml` | mysql + redis + qdrant（3 个） | 本地开发基础设施 |
 
 ## 最小启动清单

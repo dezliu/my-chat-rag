@@ -67,6 +67,7 @@ docker compose ps
 | `myrag-qdrant` | 向量库 |
 | `myrag-server` | 后端 API |
 | `myrag-admin-web` | 管理前端 |
+| `myrag-chat-h5` | 用户 H5 聊天 |
 
 ---
 
@@ -75,6 +76,7 @@ docker compose ps
 | 服务 | 地址 |
 |------|------|
 | **管理后台** | http://localhost:3000 |
+| **用户 H5 聊天** | http://localhost:3001 |
 | 后端 API | http://localhost:8080 |
 | 健康检查 | http://localhost:8080/actuator/health |
 | Qdrant Dashboard | http://localhost:6333/dashboard |

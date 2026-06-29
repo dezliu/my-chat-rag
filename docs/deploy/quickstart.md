@@ -11,7 +11,7 @@
 | 文档 | [docker-run.md](docker-run.md) | 本文档 |
 | Compose 文件 | `docker-compose.yml` | `docker-compose.infra.yml` |
 | 需要 Java 21 | 否 | **是** |
-| 需要 Node.js | 否 | **是**（管理前端） |
+| 需要 Node.js | 否 | **是**（管理前端 + 用户 H5） |
 | 启动命令 | `docker compose up -d --build` | 见下方分步说明 |
 
 ---
@@ -24,6 +24,8 @@
 | Maven | 3.9+ | `mvn -version` |
 | Node.js | 18+ | `node -v` |
 | Docker | 最新稳定版 | `docker compose version` |
+
+> 管理后台与用户 H5 均需 Node.js；若只用 curl 测 API，可跳过前端步骤。
 
 > Spring Boot 3.4 不支持 Java 8/11/17，必须使用 Java 21。
 
@@ -111,21 +113,73 @@ curl http://localhost:8080/actuator/health
 
 ## 第五步：启动管理前端
 
-**新开一个终端**：
+**新开一个终端**（保持后端终端运行）：
 
 ```bash
 cd admin-web
-npm install
+npm install    # 首次需要，之后可跳过
 npm run dev
 ```
 
-浏览器访问：**http://localhost:3000**
+启动成功后终端会显示：
 
-前端通过 Vite 代理将 `/api` 请求转发到 `http://localhost:8080`。
+```
+  VITE vX.X.X  ready in XXX ms
+  ➜  Local:   http://localhost:3000/
+```
+
+### 访问管理后台
+
+浏览器打开：**http://localhost:3000**
+
+| 页面 | 路径 | 用途 |
+|------|------|------|
+| 知识库管理 | 侧边栏「知识库」 | 创建 / 编辑知识库 |
+| 文档管理 | 侧边栏「文档」 | 上传 `.txt` `.md` `.pdf` `.docx` |
+| 召回测试 | 侧边栏「召回测试」 | 输入问题，查看检索结果 |
+| 监控 | 侧边栏「监控」 | 召回日志与质量指标 |
+| 系统配置 | 侧边栏「系统配置」 | System Prompt 等 |
+
+前端通过 Vite 代理将 `/api` 请求转发到 `http://localhost:8080`，无需单独配置 CORS。
+
+## 第六步：启动用户 H5 聊天页
+
+**再开一个终端**（保持后端与管理前端终端运行）：
+
+```bash
+cd chat-h5
+npm install    # 首次需要，之后可跳过
+npm run dev
+```
+
+启动成功后终端会显示：
+
+```
+  ▲ Next.js 14.x.x
+  - Local:        http://localhost:3001
+```
+
+### 访问用户 H5
+
+浏览器打开：**http://localhost:3001**
+
+页面功能：
+
+| 功能 | 说明 |
+|------|------|
+| 对话输入框 | 底部输入问题，Enter 发送，Shift+Enter 换行 |
+| 流式回复 | 调用 `POST /api/v1/chat/stream`，逐字显示回答 |
+| 停止生成 | 流式输出过程中可点击「停止」 |
+| 新对话 | 右上角按钮，重置会话并清空消息 |
+| 知识库引用 | 后端启用 RAG 时，回复气泡显示「已引用知识库」 |
+
+H5 通过 Next.js rewrites 将 `/api` 代理到 `http://localhost:8080`。`sessionId` 自动保存在浏览器 `localStorage`，刷新页面不会丢失当前会话。
+
+> 使用 H5 对话前，建议先在管理后台创建知识库并上传文档（见第七步）。
 
 ---
 
-## 第六步：验证功能
+## 第七步：验证功能
 
 ### 1. 创建知识库
 
@@ -149,7 +203,7 @@ curl -X POST http://localhost:8080/api/v1/admin/knowledge-bases \
 
 管理后台 → **召回测试** → 输入问题 → **检索**
 
-### 4. AI 对话
+### 4. AI 对话（curl）
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/chat \
@@ -160,6 +214,13 @@ curl -X POST http://localhost:8080/api/v1/chat \
   }'
 ```
 
+### 5. H5 页面对话
+
+1. 确认 **http://localhost:3001** 已打开且后端健康（`curl http://localhost:8080/actuator/health`）
+2. 在输入框输入问题，点击「发送」或按 Enter
+3. 观察流式输出；若知识库有相关内容，回复下方会出现「已引用知识库」标签
+4. 点击「新对话」可开始新的会话
+
 ---
 
 ## 服务地址汇总
@@ -168,6 +229,7 @@ curl -X POST http://localhost:8080/api/v1/chat \
 |------|------|
 | 后端 API | http://localhost:8080 |
 | 管理后台（Vite dev） | http://localhost:3000 |
+| 用户 H5（Next.js dev） | http://localhost:3001 |
 | MySQL | localhost:3306 |
 | Qdrant Dashboard | http://localhost:6333/dashboard |
 | Actuator 健康检查 | http://localhost:8080/actuator/health |
@@ -178,7 +240,7 @@ curl -X POST http://localhost:8080/api/v1/chat \
 ## 停止服务
 
 ```bash
-# 停止后端 / 前端：Ctrl+C
+# 停止后端 / 管理前端 / H5：在各终端按 Ctrl+C
 
 # 停止基础设施
 docker compose -f docker-compose.infra.yml down

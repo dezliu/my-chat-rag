@@ -10,6 +10,7 @@
 flowchart TB
     subgraph client [客户端]
         WebUI[Admin Web React]
+        ChatH5[Chat H5 Next.js]
         ChatClient[Chat API Client]
         MCPClient[MCP Client Cursor/Claude]
     end
@@ -31,6 +32,7 @@ flowchart TB
     end
 
     WebUI --> RagAdmin
+    ChatH5 --> ChatModule
     ChatClient --> ChatModule
     MCPClient --> RagMCP
     ChatModule --> RagQuery
@@ -57,6 +59,7 @@ flowchart TB
 | `myrag-chat` | Chat API、路由小模型、Prompt 防护 |
 | `myrag-server` | 启动入口，聚合所有模块 |
 | `admin-web` | React + Ant Design 管理后台 |
+| `chat-h5` | Next.js 14 用户端 H5 聊天页 |
 
 ## 技术栈
 
@@ -109,6 +112,7 @@ Spring AI 标准 `VectorStore` 仅支持 dense 检索，本项目通过 Qdrant U
 | Phase 2 | 混合检索、文档入库、Query/Admin API | 已完成 |
 | Phase 3 | 路由小模型、PromptGuard、Chat API | 已完成 |
 | Phase 4 | MCP Server、召回监控、React Admin 前端 | 已完成 |
+| Phase 5 | 用户端 H5 聊天页（Next.js 14） | 已完成 |
 
 ## 目录结构
 
@@ -125,8 +129,13 @@ myrag/
 ├── myrag-chat/
 ├── myrag-server/
 ├── admin-web/
+├── chat-h5/
 └── docs/
-    ├── plan/       ← 本目录
+    ├── plan/
     ├── deploy/
     └── api/
 ```
+
+## 相关计划
+
+- [用户端 H5 聊天页](chat-h5.md)

@@ -24,6 +24,7 @@
 cp .env.example .env   # 填入 AI_DASHSCOPE_API_KEY
 docker compose up -d --build
 # 管理后台: http://localhost:3000
+# 用户 H5:   http://localhost:3001
 ```
 
 详见 **[docs/deploy/docker-run.md](docs/deploy/docker-run.md)**。
@@ -37,6 +38,9 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export $(grep -v '^#' .env | xargs)
 mvn -pl myrag-server spring-boot:run
 cd admin-web && npm install && npm run dev
+
+# 用户 H5（新终端）
+cd chat-h5 && npm install && npm run dev
 ```
 
 详见 **[docs/deploy/quickstart.md](docs/deploy/quickstart.md)**。
@@ -47,9 +51,11 @@ cd admin-web && npm install && npm run dev
 |------|------|
 | [docs/README.md](docs/README.md) | 文档中心索引 |
 | [docs/deploy/docker-run.md](docs/deploy/docker-run.md) | Docker 一键运行 |
+| [chat-h5/](chat-h5/) | 用户端 H5 聊天（Next.js 14） |
 | [docs/deploy/local-dev.md](docs/deploy/local-dev.md) | 本地开发指南 |
 | [docs/deploy/configuration.md](docs/deploy/configuration.md) | 环境变量与配置 |
-| [docs/plan/README.md](docs/plan/README.md) | 架构与实施计划 |
+| [docs/plan/architecture-and-implementation.md](docs/plan/architecture-and-implementation.md) | 架构与实施计划 |
+| [docs/plan/chat-h5.md](docs/plan/chat-h5.md) | 用户端 H5 聊天页计划 |
 | [docs/api/README.md](docs/api/README.md) | API 接口文档 |
 
 ## API 端点
