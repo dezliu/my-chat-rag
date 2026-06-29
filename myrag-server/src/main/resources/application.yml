@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: myrag
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/myrag}
+    username: ${SPRING_DATASOURCE_USERNAME:myrag}
+    password: ${SPRING_DATASOURCE_PASSWORD:myrag}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: qwen-plus
+      embedding:
+        options:
+          model: text-embedding-v3
+    vectorstore:
+      qdrant:
+        host: ${SPRING_AI_VECTORSTORE_QDRANT_HOST:localhost}
+        port: ${SPRING_AI_VECTORSTORE_QDRANT_PORT:6334}
+    mcp:
+      server:
+        name: myrag-mcp
+        version: 0.1.0
+        protocol: STREAMABLE
+        type: SYNC
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+myrag:
+  chat:
+    router-model: qwen-turbo
+    chat-model: qwen-plus
+    max-user-tokens: 4096
+    max-rag-context-tokens: 8192
+    default-system-prompt: "你是一个专业的智能助手。请根据提供的知识库上下文回答用户问题。如果上下文中没有相关信息，请明确告知用户，不要编造内容。"
+  rag:
+    hybrid:
+      dense-limit: 20
+      sparse-limit: 20
+      final-top-k: 5
+      fusion: rrf
+      embedding-dimensions: 1024
+  security:
+    prompt-injection-enabled: true
+
+logging:
+  level:
+    com.myrag: INFO
+    org.springframework.ai: INFO

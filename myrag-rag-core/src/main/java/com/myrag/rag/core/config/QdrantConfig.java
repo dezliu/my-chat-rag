@@ -1,0 +1,18 @@
+package com.myrag.rag.core.config;
+
+import io.qdrant.client.QdrantClient;
+import io.qdrant.client.QdrantGrpcClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class QdrantConfig {
+
+    @Bean(destroyMethod = "close")
+    public QdrantClient qdrantClient(
+            @Value("${spring.ai.vectorstore.qdrant.host:localhost}") String host,
+            @Value("${spring.ai.vectorstore.qdrant.port:6334}") int port) {
+        return new QdrantClient(QdrantGrpcClient.newBuilder(host, port, false).build());
+    }
+}
