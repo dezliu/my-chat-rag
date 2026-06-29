@@ -20,6 +20,10 @@
             <artifactId>myrag-rag-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.myrag</groupId>
+            <artifactId>myrag-rag-monitor</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
         </dependency>

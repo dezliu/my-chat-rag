@@ -19,6 +19,7 @@ public class KnowledgeBaseService {
 
     private final KnowledgeBaseRepository knowledgeBaseRepository;
     private final QdrantCollectionManager collectionManager;
+    private final KbRevisionService kbRevisionService;
 
     public List<KnowledgeBaseDto> listActive() {
         return knowledgeBaseRepository.findByStatus("ACTIVE").stream()
@@ -76,6 +77,8 @@ public class KnowledgeBaseService {
                 .orElseThrow(() -> new MyragException(404, "Knowledge base not found: " + id));
         entity.setStatus("DELETED");
         knowledgeBaseRepository.save(entity);
+        kbRevisionService.bumpRevision(id);
+        kbRevisionService.removeRevision(id);
     }
 
     public KnowledgeBaseEntity getEntity(String id) {

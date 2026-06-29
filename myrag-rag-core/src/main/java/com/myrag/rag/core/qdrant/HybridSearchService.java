@@ -1,5 +1,6 @@
 package com.myrag.rag.core.qdrant;
 
+import com.myrag.common.ai.DynamicModelProvider;
 import com.myrag.common.config.HybridSearchProperties;
 import com.myrag.common.dto.RagSearchResult;
 import com.myrag.rag.core.sparse.Bm25SparseEncoder;
@@ -10,7 +11,6 @@ import io.qdrant.client.grpc.Points;
 import io.qdrant.client.grpc.Points.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -30,7 +30,7 @@ import static io.qdrant.client.ValueFactory.value;
 public class HybridSearchService {
 
     private final QdrantClient qdrantClient;
-    private final EmbeddingModel embeddingModel;
+    private final DynamicModelProvider modelProvider;
     private final Bm25SparseEncoder bm25SparseEncoder;
     private final HybridSearchProperties properties;
     private final QdrantCollectionManager collectionManager;
@@ -39,7 +39,7 @@ public class HybridSearchService {
         collectionManager.ensureCollection(collectionName);
         long start = System.currentTimeMillis();
         try {
-            float[] denseVector = embeddingModel.embed(query);
+            float[] denseVector = modelProvider.embeddingModel().embed(query);
             SparseVectorData sparse = bm25SparseEncoder.encode(query);
 
             List<Float> denseList = new ArrayList<>(denseVector.length);

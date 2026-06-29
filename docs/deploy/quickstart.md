@@ -144,6 +144,8 @@ npm run dev
 
 ## 第六步：启动用户 H5 聊天页
 
+### 方式 A：本地开发（npm run dev）
+
 **再开一个终端**（保持后端与管理前端终端运行）：
 
 ```bash
@@ -176,6 +178,45 @@ npm run dev
 H5 通过 Next.js rewrites 将 `/api` 代理到 `http://localhost:8080`。`sessionId` 自动保存在浏览器 `localStorage`，刷新页面不会丢失当前会话。
 
 > 使用 H5 对话前，建议先在管理后台创建知识库并上传文档（见第七步）。
+
+### 方式 B：Docker 单独启动 H5（后端已在 Docker 中运行时）
+
+若你已通过 `docker compose up` 启动了后端与管理后台，但 **http://localhost:3001 打不开**，通常是 `chat-h5` 容器未启动（例如栈是在加入 H5 服务之前拉起的）。
+
+**检查当前状态：**
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+curl -s -o /dev/null -w "3000: %{http_code}\n" http://localhost:3000/
+curl -s -o /dev/null -w "3001: %{http_code}\n" http://localhost:3001/
+curl -s http://localhost:8080/actuator/health
+```
+
+| 检查项 | 正常表现 |
+|--------|----------|
+| `myrag-server` | 容器存在，8080 返回 `{"status":"UP"}` |
+| `myrag-admin-web` | 容器存在，3000 返回 `200` |
+| `myrag-chat-h5` | 容器存在，3001 返回 `200` |
+| 仅 3001 失败 | 说明 H5 未启动，执行下方命令 |
+
+**只构建并启动 H5（不影响已在运行的其他容器）：**
+
+```bash
+cd /path/to/myrag
+docker compose up -d --build chat-h5
+```
+
+验证：
+
+```bash
+docker ps | grep chat-h5
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/
+# 期望: 200
+```
+
+浏览器访问：**http://localhost:3001**
+
+> 完整 Docker 部署说明见 [docker-run.md](docker-run.md)。若希望六个容器一并重建：`docker compose up -d --build`。
 
 ---
 
@@ -230,6 +271,7 @@ curl -X POST http://localhost:8080/api/v1/chat \
 | 后端 API | http://localhost:8080 |
 | 管理后台（Vite dev） | http://localhost:3000 |
 | 用户 H5（Next.js dev） | http://localhost:3001 |
+| 用户 H5（Docker） | http://localhost:3001（需 `docker compose up -d chat-h5`） |
 | MySQL | localhost:3306 |
 | Qdrant Dashboard | http://localhost:6333/dashboard |
 | Actuator 健康检查 | http://localhost:8080/actuator/health |
@@ -237,12 +279,30 @@ curl -X POST http://localhost:8080/api/v1/chat \
 
 ---
 
+## 常见问题
+
+| 现象 | 可能原因 | 处理 |
+|------|----------|------|
+| **http://localhost:3001 打不开** | `chat-h5` 未启动 | Docker：`docker compose up -d --build chat-h5`；本地：`cd chat-h5 && npm run dev` |
+| 3000 能访问，3001 不行 | 仅管理后台在跑，H5 需单独启动 | 见上 |
+| H5 页面能开，发消息失败 | 后端未就绪或 API Key 未配置 | `curl http://localhost:8080/actuator/health`；检查 `.env` 中 `AI_DASHSCOPE_API_KEY` |
+| 本地 `npm run dev` 报端口占用 | 3001 已被占用 | `lsof -i :3001` 查看并结束占用进程 |
+| Docker 构建 H5 很慢 | 首次需下载 Node 依赖并 build Next.js | 耐心等待，或改用本地 dev 模式（第六步 方式 A） |
+
+---
+
 ## 停止服务
 
 ```bash
-# 停止后端 / 管理前端 / H5：在各终端按 Ctrl+C
+# 本地 dev：停止后端 / 管理前端 / H5 — 在各终端按 Ctrl+C
 
-# 停止基础设施
+# Docker：停止 H5 容器
+docker compose stop chat-h5
+
+# Docker：停止完整应用栈
+docker compose down
+
+# 停止基础设施（本地开发模式）
 docker compose -f docker-compose.infra.yml down
 
 # 停止并清除数据卷（慎用，会删除数据库和向量数据）

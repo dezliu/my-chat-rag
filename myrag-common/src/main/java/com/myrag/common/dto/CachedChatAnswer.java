@@ -11,11 +11,8 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatResponse {
-    private String sessionId;
+public class CachedChatAnswer {
     private String reply;
     private boolean usedRag;
     private List<String> ragKbIds;
-    private RagRouteDecision routeDecision;
-    private boolean cacheHit;
 }

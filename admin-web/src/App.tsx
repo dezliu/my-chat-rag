@@ -6,11 +6,13 @@ import {
   SearchOutlined,
   DashboardOutlined,
   SettingOutlined,
+  MessageOutlined,
 } from '@ant-design/icons'
 import KnowledgeBasePage from './pages/KnowledgeBase'
 import DocumentsPage from './pages/Documents'
 import RecallTestPage from './pages/RecallTest'
 import MonitorPage from './pages/Monitor'
+import ChatLogsPage from './pages/ChatLogs'
 import SystemConfigPage from './pages/SystemConfig'
 
 const { Header, Sider, Content } = Layout
@@ -24,6 +26,7 @@ function AppLayout() {
     { key: 'documents', icon: <FileOutlined />, label: <Link to="/documents">文档管理</Link> },
     { key: 'recall-test', icon: <SearchOutlined />, label: <Link to="/recall-test">召回测试</Link> },
     { key: 'monitor', icon: <DashboardOutlined />, label: <Link to="/monitor">监控仪表盘</Link> },
+    { key: 'chat-logs', icon: <MessageOutlined />, label: <Link to="/chat-logs">用户问题</Link> },
     { key: 'system-config', icon: <SettingOutlined />, label: <Link to="/system-config">系统配置</Link> },
   ]
 
@@ -46,6 +49,7 @@ function AppLayout() {
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/recall-test" element={<RecallTestPage />} />
             <Route path="/monitor" element={<MonitorPage />} />
+            <Route path="/chat-logs" element={<ChatLogsPage />} />
             <Route path="/system-config" element={<SystemConfigPage />} />
           </Routes>
         </Content>

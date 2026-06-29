@@ -1,14 +1,20 @@
 package com.myrag.rag.admin;
 
 import com.myrag.common.dto.*;
+import com.myrag.rag.core.service.AiRuntimeConfigService;
 import com.myrag.rag.core.service.DocumentIngestionService;
 import com.myrag.rag.core.service.KnowledgeBaseService;
 import com.myrag.rag.core.service.RagQueryService;
 import com.myrag.rag.core.service.SystemPromptService;
 import com.myrag.rag.monitor.entity.RecallLogEntity;
 import com.myrag.rag.monitor.entity.RecallQualityAlertEntity;
+import com.myrag.rag.monitor.entity.ChatCacheLogEntity;
+import com.myrag.rag.monitor.entity.ChatQueryLogEntity;
 import com.myrag.rag.monitor.service.RecallLogService;
 import com.myrag.rag.monitor.service.RecallQualityEvaluator;
+import com.myrag.rag.monitor.service.ChatCacheMonitorService;
+import com.myrag.rag.monitor.service.ChatQueryLogService;
+import com.myrag.chat.cache.ChatCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,9 +33,13 @@ public class AdminController {
     private final KnowledgeBaseService knowledgeBaseService;
     private final DocumentIngestionService documentIngestionService;
     private final SystemPromptService systemPromptService;
+    private final AiRuntimeConfigService aiRuntimeConfigService;
     private final RagQueryService ragQueryService;
     private final RecallLogService recallLogService;
     private final RecallQualityEvaluator recallQualityEvaluator;
+    private final ChatCacheMonitorService chatCacheMonitorService;
+    private final ChatQueryLogService chatQueryLogService;
+    private final ChatCacheService chatCacheService;
 
     // --- Knowledge Base ---
 
@@ -94,6 +104,18 @@ public class AdminController {
         return ApiResponse.ok(Map.of("prompt", prompt));
     }
 
+    // --- AI Config ---
+
+    @GetMapping("/ai-config")
+    public ApiResponse<AiConfigDto> getAiConfig() {
+        return ApiResponse.ok(aiRuntimeConfigService.toAdminDto());
+    }
+
+    @PutMapping("/ai-config")
+    public ApiResponse<AiConfigDto> updateAiConfig(@RequestBody AiConfigUpdateRequest request) {
+        return ApiResponse.ok(aiRuntimeConfigService.update(request));
+    }
+
     // --- Recall Test ---
 
     @PostMapping("/recall-test")
@@ -101,9 +123,10 @@ public class AdminController {
         RagSearchResponse response = ragQueryService.search(request);
         if (request.getKbIds() != null) {
             for (String kbId : request.getKbIds()) {
-                recallLogService.logRecall(kbId, request.getQuery(), response.getResults().size(),
-                        response.getResults(), response.getLatencyMs());
-                recallQualityEvaluator.evaluateAsync(null, kbId, request.getQuery(), response.getResults());
+                recallQualityEvaluator.evaluateAsync(null, kbId, request.getQuery(),
+                        response.getResults().stream()
+                                .filter(r -> kbId.equals(r.getKbId()))
+                                .toList());
             }
         }
         return ApiResponse.ok(response);
@@ -121,7 +144,29 @@ public class AdminController {
 
     @GetMapping("/monitor/metrics")
     public ApiResponse<Map<String, Object>> metrics() {
-        return ApiResponse.ok(recallLogService.getMetrics());
+        Map<String, Object> merged = new java.util.HashMap<>(recallLogService.getMetrics());
+        merged.putAll(chatQueryLogService.getMetrics());
+        return ApiResponse.ok(merged);
+    }
+
+    @GetMapping("/monitor/chat-logs")
+    public ApiResponse<Page<ChatQueryLogEntity>> chatLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(chatQueryLogService.listLogs(PageRequest.of(page, size)));
+    }
+
+    @GetMapping("/monitor/cache-logs")
+    public ApiResponse<Page<ChatCacheLogEntity>> cacheLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(chatCacheMonitorService.listLogs(PageRequest.of(page, size)));
+    }
+
+    @DeleteMapping("/monitor/cache")
+    public ApiResponse<Map<String, Long>> clearCache() {
+        long deleted = chatCacheService.clearAll();
+        return ApiResponse.ok(Map.of("deletedKeys", deleted));
     }
 
     @GetMapping("/monitor/alerts")

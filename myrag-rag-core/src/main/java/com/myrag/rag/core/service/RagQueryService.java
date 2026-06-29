@@ -5,6 +5,7 @@ import com.myrag.common.dto.RagSearchResponse;
 import com.myrag.common.dto.RagSearchResult;
 import com.myrag.rag.core.entity.KnowledgeBaseEntity;
 import com.myrag.rag.core.qdrant.HybridSearchService;
+import com.myrag.rag.monitor.service.RecallLogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ public class RagQueryService {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final HybridSearchService hybridSearchService;
+    private final RecallLogService recallLogService;
 
     public RagSearchResponse search(RagSearchRequest request) {
         long start = System.currentTimeMillis();
@@ -28,11 +30,14 @@ public class RagQueryService {
             if (!"ACTIVE".equals(kb.getStatus())) {
                 continue;
             }
+            long kbStart = System.currentTimeMillis();
             List<RagSearchResult> results = hybridSearchService.search(
                     kb.getCollectionName(),
                     request.getQuery(),
                     request.getTopK(),
                     request.getMinScore());
+            long kbLatency = System.currentTimeMillis() - kbStart;
+            recallLogService.logRecall(kbId, request.getQuery(), results.size(), results, kbLatency);
             allResults.addAll(results);
         }
 

@@ -93,6 +93,10 @@ myrag:
     max-user-tokens: 4096          # 单条用户消息最大字符近似上限
     max-rag-context-tokens: 8192   # RAG 上下文最大字符近似上限
     default-system-prompt: "..."    # 默认 System Prompt（DB 无配置时使用）
+    cache:
+      enabled: true                 # 是否启用用户问题答案缓存
+      ttl-hours: 24                 # Redis 缓存 TTL（小时）
+      min-question-length: 2        # 低于此长度的问题不缓存
 
   rag:
     hybrid:
@@ -118,7 +122,47 @@ curl -X PUT http://localhost:8080/api/v1/admin/system-prompt \
   -d '{"prompt":"你是一个专业的客服助手..."}'
 ```
 
-System Prompt 存储在 MySQL `system_prompt_config` 表，Chat API **不接受**客户端传入 system 字段。
+System Prompt 存储在 MySQL `system_prompt_config` 表，Chat API **不接受**客户端传入 system 字段。Prompt 版本变更后缓存 key 自动失效。
+
+### AI Key 与模型配置
+
+**优先级**：数据库（管理后台保存）> 环境变量 `AI_DASHSCOPE_API_KEY` > `application.yml` 默认值。
+
+| 配置项 | 环境变量 / yml 默认 | 管理后台可改 |
+|--------|---------------------|--------------|
+| API Key | `AI_DASHSCOPE_API_KEY` | 是（脱敏展示，留空不修改） |
+| 路由模型 | `myrag.chat.router-model`（qwen-turbo） | 是 |
+| 对话模型 | `myrag.chat.chat-model`（qwen-plus） | 是 |
+| Embedding | `spring.ai.dashscope.embedding.options.model` | 是 |
+
+**方式一（推荐）**：管理后台 → 系统配置 → AI 配置
+
+**方式二**：API
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/admin/ai-config \
+  -H "Content-Type: application/json" \
+  -d '{"routerModel":"qwen-turbo","chatModel":"qwen-plus","embeddingModel":"text-embedding-v3"}'
+```
+
+保存后即时生效，无需重启服务。生产环境建议 Key 仍通过环境变量注入。
+
+### 用户问题答案缓存
+
+Chat API 对相同问题（归一化后）缓存完整答案（含 RAG + LLM 结果），存储在 Redis。
+
+| 配置项 | 默认 | 说明 |
+|--------|------|------|
+| `myrag.chat.cache.enabled` | `true` | 是否启用 |
+| `myrag.chat.cache.ttl-hours` | `24` | 缓存过期时间 |
+| `myrag.chat.cache.min-question-length` | `2` | 最短可缓存问题长度 |
+
+失效条件（自动，无需手动清理）：
+
+- System Prompt 版本更新
+- 知识库文档上传 / 删除 / 重建索引（`myrag:kb:rev:{kbId}` 递增）
+
+管理后台监控页可查看缓存命中次数、未命中次数、命中率及访问日志；也可点击「清空答案缓存」手动清除。
 
 ### 知识库分块配置
 

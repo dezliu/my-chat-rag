@@ -2,6 +2,7 @@ package com.myrag.rag.core.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.myrag.common.ai.DynamicModelProvider;
 import com.myrag.common.dto.DocumentDto;
 import com.myrag.common.exception.MyragException;
 import com.myrag.rag.core.entity.DocumentChunkEntity;
@@ -15,7 +16,6 @@ import com.myrag.rag.core.util.TextSplitter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -37,11 +37,12 @@ public class DocumentIngestionService {
     private final DocumentChunkRepository documentChunkRepository;
     private final KnowledgeBaseService knowledgeBaseService;
     private final HybridSearchService hybridSearchService;
-    private final EmbeddingModel embeddingModel;
+    private final DynamicModelProvider modelProvider;
     private final Bm25SparseEncoder bm25SparseEncoder;
     private final TextSplitter textSplitter;
     private final ObjectMapper objectMapper;
     private final Tika tika = new Tika();
+    private final KbRevisionService kbRevisionService;
 
     public List<DocumentDto> listByKb(String kbId) {
         return documentRepository.findByKbId(kbId).stream()
@@ -73,6 +74,7 @@ public class DocumentIngestionService {
             log.error("Failed to index document {}", doc.getId(), e);
             throw new MyragException(500, "Document indexing failed: " + e.getMessage());
         }
+        kbRevisionService.bumpRevision(kbId);
         return toDto(documentRepository.save(doc));
     }
 
@@ -96,6 +98,7 @@ public class DocumentIngestionService {
         int chunkCount = indexDocument(kb, doc, content);
         doc.setChunkCount(chunkCount);
         doc.setStatus("INDEXED");
+        kbRevisionService.bumpRevision(doc.getKbId());
         return toDto(documentRepository.save(doc));
     }
 
@@ -107,6 +110,7 @@ public class DocumentIngestionService {
         hybridSearchService.deleteByDocId(kb.getCollectionName(), docId);
         documentChunkRepository.deleteByDocId(docId);
         documentRepository.delete(doc);
+        kbRevisionService.bumpRevision(doc.getKbId());
     }
 
     private int indexDocument(KnowledgeBaseEntity kb, DocumentEntity doc, String content) {
@@ -125,7 +129,7 @@ public class DocumentIngestionService {
         int index = 0;
         for (String chunk : chunks) {
             String pointId = UUID.randomUUID().toString();
-            float[] dense = embeddingModel.embed(chunk);
+            float[] dense = modelProvider.embeddingModel().embed(chunk);
             var sparse = bm25SparseEncoder.encode(chunk);
 
             hybridSearchService.upsertChunk(

@@ -41,6 +41,22 @@ export interface RagSearchResponse {
   latencyMs: number
 }
 
+export interface AiConfig {
+  apiKeyMasked: string
+  apiKeyConfigured: boolean
+  apiKeySource: 'db' | 'env'
+  routerModel: string
+  chatModel: string
+  embeddingModel: string
+}
+
+export interface AiConfigUpdate {
+  apiKey?: string
+  routerModel: string
+  chatModel: string
+  embeddingModel: string
+}
+
 export const adminApi = {
   listKnowledgeBases: () => api.get<ApiResponse<KnowledgeBase[]>>('/admin/knowledge-bases'),
   createKnowledgeBase: (data: { name: string; description?: string }) =>
@@ -55,11 +71,18 @@ export const adminApi = {
   deleteDocument: (docId: string) => api.delete(`/admin/documents/${docId}`),
   getSystemPrompt: () => api.get<ApiResponse<{ prompt: string }>>('/admin/system-prompt'),
   updateSystemPrompt: (prompt: string) => api.put('/admin/system-prompt', { prompt }),
+  getAiConfig: () => api.get<ApiResponse<AiConfig>>('/admin/ai-config'),
+  updateAiConfig: (data: AiConfigUpdate) => api.put<ApiResponse<AiConfig>>('/admin/ai-config', data),
   recallTest: (data: { kbIds: string[]; query: string; topK?: number }) =>
     api.post<ApiResponse<RagSearchResponse>>('/admin/recall-test', data),
   getMetrics: () => api.get<ApiResponse<Record<string, number>>>('/admin/monitor/metrics'),
   getRecallLogs: (page = 0, size = 20) =>
     api.get(`/admin/monitor/recall-logs?page=${page}&size=${size}`),
+  getCacheLogs: (page = 0, size = 20) =>
+    api.get(`/admin/monitor/cache-logs?page=${page}&size=${size}`),
+  getChatLogs: (page = 0, size = 20) =>
+    api.get(`/admin/monitor/chat-logs?page=${page}&size=${size}`),
+  clearCache: () => api.delete<ApiResponse<{ deletedKeys: number }>>('/admin/monitor/cache'),
   getAlerts: () => api.get('/admin/monitor/alerts'),
 }
 

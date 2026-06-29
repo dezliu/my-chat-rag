@@ -135,6 +135,15 @@ curl -N -X POST http://localhost:8080/api/v1/chat/stream \
 | GET | `/system-prompt` | 获取当前 Prompt |
 | PUT | `/system-prompt` | 更新 `{prompt: "..."}` |
 
+### AI 配置
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/ai-config` | 获取 AI 配置（Key 脱敏，含模型名与 Key 来源） |
+| PUT | `/ai-config` | 更新 `{apiKey?, routerModel, chatModel, embeddingModel}`；`apiKey` 留空或不传表示不修改 |
+
+GET 返回示例：`apiKeyMasked`、`apiKeyConfigured`、`apiKeySource`（`db`/`env`）、`routerModel`、`chatModel`、`embeddingModel`。
+
 ### 召回测试
 
 | 方法 | 路径 | 说明 |
@@ -146,8 +155,13 @@ curl -N -X POST http://localhost:8080/api/v1/chat/stream \
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/monitor/recall-logs?kbId=&page=&size=` | 召回日志分页 |
-| GET | `/monitor/metrics` | 聚合指标 |
+| GET | `/monitor/chat-logs?page=&size=` | 用户问题日志（含缓存/RAG/质量分） |
+| GET | `/monitor/cache-logs?page=&size=` | 缓存访问日志（历史） |
+| GET | `/monitor/metrics` | 聚合指标（召回 + 用户提问 + 缓存） |
+| DELETE | `/monitor/cache` | 清空答案缓存 |
 | GET | `/monitor/alerts` | 质量告警 |
+
+`GET /monitor/metrics` 返回字段包括：`totalRecalls`、`totalChatQueries`、`chatRagRate`、`chatRecallRate`、`cacheHitRate`、`avgQualityScore` 等。
 
 ---
 

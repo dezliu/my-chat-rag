@@ -1,0 +1,20 @@
+CREATE TABLE chat_query_log (
+    id VARCHAR(36) NOT NULL PRIMARY KEY,
+    session_id VARCHAR(36),
+    query TEXT NOT NULL,
+    reply_preview TEXT,
+    cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
+    need_rag BOOLEAN,
+    used_rag BOOLEAN,
+    rag_kb_ids TEXT,
+    route_reason TEXT,
+    route_confidence DOUBLE,
+    recall_count INT,
+    top_scores_json TEXT,
+    quality_score DOUBLE,
+    quality_reason TEXT,
+    latency_ms BIGINT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_chat_query_log_created_at (created_at DESC),
+    KEY idx_chat_query_log_session_id (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

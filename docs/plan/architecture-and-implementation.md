@@ -139,3 +139,4 @@ myrag/
 ## 相关计划
 
 - [用户端 H5 聊天页](chat-h5.md)
+- [用户问题日志与监控](chat-query-log.md)

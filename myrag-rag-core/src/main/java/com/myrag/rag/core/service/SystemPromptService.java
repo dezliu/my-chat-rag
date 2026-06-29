@@ -20,6 +20,12 @@ public class SystemPromptService {
                 .orElse(chatProperties.getDefaultSystemPrompt());
     }
 
+    public int getActiveVersion() {
+        return repository.findTopByOrderByVersionDesc()
+                .map(SystemPromptConfigEntity::getVersion)
+                .orElse(0);
+    }
+
     @Transactional
     public String updatePrompt(String promptText) {
         int nextVersion = repository.findTopByOrderByVersionDesc()

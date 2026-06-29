@@ -20,6 +20,10 @@
             <artifactId>myrag-rag-monitor</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.myrag</groupId>
+            <artifactId>myrag-chat</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

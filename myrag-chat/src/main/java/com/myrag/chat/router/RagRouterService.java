@@ -1,9 +1,9 @@
 package com.myrag.chat.router;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.myrag.common.config.ChatProperties;
 import com.myrag.common.dto.KnowledgeBaseDto;
 import com.myrag.common.dto.RagRouteDecision;
+import com.myrag.common.ai.DynamicModelProvider;
 import com.myrag.rag.core.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +19,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RagRouterService {
 
-    private final ChatClient.Builder chatClientBuilder;
+    private final DynamicModelProvider modelProvider;
     private final KnowledgeBaseService knowledgeBaseService;
-    private final ChatProperties chatProperties;
     private final ObjectMapper objectMapper;
 
     public RagRouteDecision route(String userMessage) {
@@ -57,8 +56,8 @@ public class RagRouterService {
                 """.formatted(kbList, userMessage);
 
         try {
-            String response = chatClientBuilder.build()
-                    .prompt()
+            ChatClient routerChatClient = ChatClient.builder(modelProvider.routerChatModel()).build();
+            String response = routerChatClient.prompt()
                     .user(prompt)
                     .call()
                     .content();

@@ -16,6 +16,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -59,6 +63,10 @@ myrag:
     max-user-tokens: 4096
     max-rag-context-tokens: 8192
     default-system-prompt: "你是一个专业的智能助手。请根据提供的知识库上下文回答用户问题。如果上下文中没有相关信息，请明确告知用户，不要编造内容。"
+    cache:
+      enabled: true
+      ttl-hours: 24
+      min-question-length: 2
   rag:
     hybrid:
       dense-limit: 20
