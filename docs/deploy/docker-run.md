@@ -186,6 +186,21 @@ docker compose ps server
 curl http://localhost:8080/actuator/health
 ```
 
+### 构建失败 `docker/dockerfile:1` 401 Unauthorized
+
+错误示例：
+
+```
+failed to resolve source metadata for docker.io/docker/dockerfile:1
+... docker.m.daocloud.io ... 401 Unauthorized
+```
+
+原因：Dockerfile 首行 `# syntax=docker/dockerfile:1` 会额外拉取 BuildKit 前端镜像；部分国内镜像加速（如 DaoCloud）对该镜像返回 401。
+
+处理：
+- 本项目 Dockerfile 已移除该行（普通多阶段构建不需要）
+- 或修改 Docker Desktop → Settings → Docker Engine，去掉/更换失效的 `registry-mirrors` 后重启 Docker
+
 ### 构建失败 `mvn package`
 
 ```bash
