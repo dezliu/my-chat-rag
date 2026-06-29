@@ -1,5 +1,7 @@
 package com.myrag.rag.core.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myrag.common.config.ChatProperties;
 import com.myrag.common.dto.AiConfigDto;
 import com.myrag.common.dto.AiConfigUpdateRequest;
@@ -8,16 +10,23 @@ import com.myrag.rag.core.entity.AiRuntimeConfigEntity;
 import com.myrag.rag.core.repository.AiRuntimeConfigRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiRuntimeConfigService {
 
     private final AiRuntimeConfigRepository repository;
     private final ChatProperties chatProperties;
+    private final ObjectMapper objectMapper;
 
     @Value("${spring.ai.dashscope.api-key:}")
     private String envApiKey;
@@ -45,8 +54,6 @@ public class AiRuntimeConfigService {
 
     public AiConfigDto toAdminDto() {
         EffectiveAiConfig config = getEffectiveConfig();
-        AiRuntimeConfigEntity entity = findEntity();
-        String dbApiKey = entity != null ? entity.getApiKey() : null;
         boolean configured = config.apiKey() != null && !config.apiKey().isBlank();
 
         return AiConfigDto.builder()
@@ -56,6 +63,7 @@ public class AiRuntimeConfigService {
                 .routerModel(config.routerModel())
                 .chatModel(config.chatModel())
                 .embeddingModel(config.embeddingModel())
+                .customChatModels(parseCustomChatModels(findEntity()))
                 .build();
     }
 
@@ -78,6 +86,9 @@ public class AiRuntimeConfigService {
         if (request.getApiKey() != null && !request.getApiKey().isBlank()) {
             entity.setApiKey(request.getApiKey().trim());
         }
+        if (request.getCustomChatModels() != null) {
+            entity.setCustomChatModelsJson(serializeCustomChatModels(request.getCustomChatModels()));
+        }
 
         repository.save(entity);
         configVersion++;
@@ -93,6 +104,40 @@ public class AiRuntimeConfigService {
             return dbValue;
         }
         return defaultValue;
+    }
+
+    private List<String> parseCustomChatModels(AiRuntimeConfigEntity entity) {
+        if (entity == null || entity.getCustomChatModelsJson() == null || entity.getCustomChatModelsJson().isBlank()) {
+            return List.of();
+        }
+        try {
+            List<String> models = objectMapper.readValue(entity.getCustomChatModelsJson(), new TypeReference<>() {});
+            return normalizeModelNames(models);
+        } catch (Exception e) {
+            log.warn("Failed to parse custom chat models json", e);
+            return List.of();
+        }
+    }
+
+    private String serializeCustomChatModels(List<String> models) {
+        try {
+            return objectMapper.writeValueAsString(normalizeModelNames(models));
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize custom chat models", e);
+        }
+    }
+
+    private List<String> normalizeModelNames(List<String> models) {
+        if (models == null || models.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String model : models) {
+            if (model != null && !model.isBlank()) {
+                unique.add(model.trim());
+            }
+        }
+        return new ArrayList<>(unique);
     }
 
     public record EffectiveAiConfig(

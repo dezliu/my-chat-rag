@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,4 +18,5 @@ public class AiConfigDto {
     private String routerModel;
     private String chatModel;
     private String embeddingModel;
+    private List<String> customChatModels;
 }

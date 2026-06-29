@@ -33,6 +33,9 @@ public class AiRuntimeConfigEntity {
     @Column(name = "embedding_model", length = 100)
     private String embeddingModel;
 
+    @Column(name = "custom_chat_models_json", columnDefinition = "TEXT")
+    private String customChatModelsJson;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

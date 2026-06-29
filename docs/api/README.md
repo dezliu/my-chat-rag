@@ -139,10 +139,10 @@ curl -N -X POST http://localhost:8080/api/v1/chat/stream \
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/ai-config` | 获取 AI 配置（Key 脱敏，含模型名与 Key 来源） |
-| PUT | `/ai-config` | 更新 `{apiKey?, routerModel, chatModel, embeddingModel}`；`apiKey` 留空或不传表示不修改 |
+| GET | `/ai-config` | 获取 AI 配置（Key 脱敏，含模型名、自定义对话模型列表与 Key 来源） |
+| PUT | `/ai-config` | 更新 `{apiKey?, routerModel, chatModel, embeddingModel, customChatModels?}`；`apiKey` 留空或不传表示不修改 |
 
-GET 返回示例：`apiKeyMasked`、`apiKeyConfigured`、`apiKeySource`（`db`/`env`）、`routerModel`、`chatModel`、`embeddingModel`。
+GET 返回示例：`apiKeyMasked`、`apiKeyConfigured`、`apiKeySource`（`db`/`env`）、`routerModel`、`chatModel`、`embeddingModel`、`customChatModels`（用户添加的对话模型名列表）。
 
 ### 召回测试
 

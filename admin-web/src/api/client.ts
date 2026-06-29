@@ -48,6 +48,7 @@ export interface AiConfig {
   routerModel: string
   chatModel: string
   embeddingModel: string
+  customChatModels: string[]
 }
 
 export interface AiConfigUpdate {
@@ -55,6 +56,7 @@ export interface AiConfigUpdate {
   routerModel: string
   chatModel: string
   embeddingModel: string
+  customChatModels?: string[]
 }
 
 export const adminApi = {
