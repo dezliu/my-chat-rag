@@ -12,7 +12,10 @@ cp .env.example .env
 
 | 变量名 | 必填 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `AI_DASHSCOPE_API_KEY` | **是** | — | 阿里云百炼 DashScope API Key |
+| `AI_DASHSCOPE_API_KEY` | 使用千问时**是** | — | 阿里云百炼 DashScope API Key |
+| `AI_PROVIDER` | 否 | `dashscope` | AI 厂商：`dashscope`（千问）或 `zhipuai`（智谱） |
+| `AI_ZHIPUAI_API_KEY` | 使用智谱时**是** | — | 智谱开放平台 API Key |
+| `AI_ZHIPUAI_BASE_URL` | 否 | `https://open.bigmodel.cn/api/paas` | 智谱 API Base URL（Z.ai 用户可改为 `https://api.z.ai/api/paas`） |
 | `SPRING_DATASOURCE_URL` | 否 | `jdbc:mysql://localhost:3306/myrag?...` | MySQL 连接 URL |
 | `SPRING_DATASOURCE_USERNAME` | 否 | `myrag` | 数据库用户名 |
 | `SPRING_DATASOURCE_PASSWORD` | 否 | `myrag` | 数据库密码 |
@@ -39,7 +42,43 @@ AI_DASHSCOPE_API_KEY=sk-xxx mvn -pl myrag-server spring-boot:run
 
 配置文件路径：`myrag-server/src/main/resources/application.yml`
 
-### Spring AI / DashScope
+### Spring AI / 多厂商
+
+系统通过管理后台或环境变量选择 **千问 (DashScope)** 或 **智谱 (ZhipuAI)**。模型由代码手动构建，已禁用 Spring AI 自动装配：
+
+```yaml
+spring:
+  ai:
+    model:
+      chat: none
+      embedding: none
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: qwen-plus
+      embedding:
+        options:
+          model: text-embedding-v3
+```
+
+```yaml
+myrag:
+  ai:
+    provider: ${AI_PROVIDER:dashscope}
+    zhipuai:
+      api-key: ${AI_ZHIPUAI_API_KEY:}
+      base-url: ${AI_ZHIPUAI_BASE_URL:https://open.bigmodel.cn/api/paas}
+```
+
+| 厂商 | 路由模型默认 | 对话模型默认 | Embedding 默认 | 向量维度 |
+|------|-------------|-------------|----------------|----------|
+| 千问 | qwen-turbo | qwen-plus | text-embedding-v3 | 1024 |
+| 智谱 | glm-4-flash | glm-4-plus | embedding-3 | 1536 |
+
+> **切换 Embedding 厂商或维度后**，已有知识库需**重新入库**文档，否则 Qdrant 向量维度不匹配会导致检索失败。
+
+### Spring AI / DashScope（千问专用配置项）
 
 ```yaml
 spring:
@@ -126,23 +165,32 @@ System Prompt 存储在 MySQL `system_prompt_config` 表，Chat API **不接受*
 
 ### AI Key 与模型配置
 
-**优先级**：数据库（管理后台保存）> 环境变量 `AI_DASHSCOPE_API_KEY` > `application.yml` 默认值。
+**优先级**：数据库（管理后台保存）> 环境变量（按厂商选择 `AI_DASHSCOPE_API_KEY` 或 `AI_ZHIPUAI_API_KEY`）> `application.yml` 默认值。
 
 | 配置项 | 环境变量 / yml 默认 | 管理后台可改 |
 |--------|---------------------|--------------|
-| API Key | `AI_DASHSCOPE_API_KEY` | 是（脱敏展示，留空不修改） |
-| 路由模型 | `myrag.chat.router-model`（qwen-turbo） | 是 |
-| 对话模型 | `myrag.chat.chat-model`（qwen-plus） | 是 |
-| Embedding | `spring.ai.dashscope.embedding.options.model` | 是 |
+| AI 厂商 | `AI_PROVIDER`（dashscope） | 是 |
+| API Key | 按厂商对应环境变量 | 是（脱敏展示，留空不修改） |
+| 智谱 Base URL | `AI_ZHIPUAI_BASE_URL` | 是（仅智谱） |
+| 路由模型 | 按厂商默认 | 是 |
+| 对话模型 | 按厂商默认 | 是 |
+| Embedding | 按厂商默认 | 是 |
+| Embedding 维度 | 按厂商默认（1024/1536） | 是 |
 
-**方式一（推荐）**：管理后台 → 系统配置 → AI 配置
+**方式一（推荐）**：管理后台 → 系统配置 → AI 配置（可选择千问/智谱）
 
 **方式二**：API
 
 ```bash
+# 切换为智谱
 curl -X PUT http://localhost:8080/api/v1/admin/ai-config \
   -H "Content-Type: application/json" \
-  -d '{"routerModel":"qwen-turbo","chatModel":"qwen-plus","embeddingModel":"text-embedding-v3"}'
+  -d '{"provider":"zhipuai","apiKey":"your-key","routerModel":"glm-4-flash","chatModel":"glm-4-plus","embeddingModel":"embedding-3","embeddingDimensions":1536}'
+
+# 千问（默认）
+curl -X PUT http://localhost:8080/api/v1/admin/ai-config \
+  -H "Content-Type: application/json" \
+  -d '{"provider":"dashscope","routerModel":"qwen-turbo","chatModel":"qwen-plus","embeddingModel":"text-embedding-v3","embeddingDimensions":1024}'
 ```
 
 保存后即时生效，无需重启服务。生产环境建议 Key 仍通过环境变量注入。

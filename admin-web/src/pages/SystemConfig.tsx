@@ -1,28 +1,77 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Input, Button, message, Alert, Select, Tag, Divider } from 'antd'
+import { Input, Button, message, Alert, Select, Tag, Divider, InputNumber } from 'antd'
 import { useState, useEffect, useMemo } from 'react'
 import { adminApi } from '../api/client'
 
-const PRESET_MODELS = [
+type AiProvider = 'dashscope' | 'zhipuai'
+
+const PROVIDER_OPTIONS = [
+  { value: 'dashscope', label: '千问 (DashScope)' },
+  { value: 'zhipuai', label: '智谱 (ZhipuAI)' },
+]
+
+const DASHSCOPE_CHAT_PRESETS = [
   { value: 'qwen-turbo', label: 'qwen-turbo（轻量）' },
   { value: 'qwen-plus', label: 'qwen-plus（默认）' },
   { value: 'qwen-max', label: 'qwen-max（高质量）' },
   { value: 'qwen-long', label: 'qwen-long（长文本）' },
 ]
 
-const PRESET_MODEL_VALUES = new Set(PRESET_MODELS.map(m => m.value))
+const ZHIPU_CHAT_PRESETS = [
+  { value: 'glm-4-flash', label: 'glm-4-flash（路由推荐）' },
+  { value: 'glm-4-air', label: 'glm-4-air（轻量）' },
+  { value: 'glm-4-plus', label: 'glm-4-plus（默认）' },
+  { value: 'glm-4.6', label: 'glm-4.6（高质量）' },
+]
 
-const EMBEDDING_MODELS = [
-  { value: 'text-embedding-v3', label: 'text-embedding-v3' },
+const DASHSCOPE_EMBEDDING_MODELS = [
+  { value: 'text-embedding-v3', label: 'text-embedding-v3（1024 维）' },
   { value: 'text-embedding-v2', label: 'text-embedding-v2' },
 ]
 
+const ZHIPU_EMBEDDING_MODELS = [
+  { value: 'embedding-3', label: 'embedding-3（1536 维）' },
+]
+
+const PROVIDER_DEFAULTS: Record<AiProvider, {
+  routerModel: string
+  chatModel: string
+  embeddingModel: string
+  embeddingDimensions: number
+  baseUrl: string
+}> = {
+  dashscope: {
+    routerModel: 'qwen-turbo',
+    chatModel: 'qwen-plus',
+    embeddingModel: 'text-embedding-v3',
+    embeddingDimensions: 1024,
+    baseUrl: '',
+  },
+  zhipuai: {
+    routerModel: 'glm-4-flash',
+    chatModel: 'glm-4-plus',
+    embeddingModel: 'embedding-3',
+    embeddingDimensions: 1536,
+    baseUrl: 'https://open.bigmodel.cn/api/paas',
+  },
+}
+
+function getChatPresets(provider: AiProvider) {
+  return provider === 'zhipuai' ? ZHIPU_CHAT_PRESETS : DASHSCOPE_CHAT_PRESETS
+}
+
+function getEmbeddingModels(provider: AiProvider) {
+  return provider === 'zhipuai' ? ZHIPU_EMBEDDING_MODELS : DASHSCOPE_EMBEDDING_MODELS
+}
+
 function buildModelOptions(
+  presets: { value: string; label: string }[],
   customModels: string[],
   currentModel: string,
 ) {
-  const options = [...PRESET_MODELS]
-  const seen = new Set(PRESET_MODEL_VALUES)
+  const presetValues = new Set(presets.map(m => m.value))
+  const options = [...presets]
+  const seen = new Set(presetValues)
   for (const model of customModels) {
     if (!seen.has(model)) {
       options.push({ value: model, label: `${model}（自定义）` })
@@ -43,6 +92,7 @@ interface CustomModelFieldProps {
   onCustomModelsChange: (models: string[]) => void
   defaultModel: string
   inputPlaceholder: string
+  presets: { value: string; label: string }[]
 }
 
 function CustomModelField({
@@ -53,11 +103,13 @@ function CustomModelField({
   onCustomModelsChange,
   defaultModel,
   inputPlaceholder,
+  presets,
 }: CustomModelFieldProps) {
   const [newModel, setNewModel] = useState('')
+  const presetValues = useMemo(() => new Set(presets.map(m => m.value)), [presets])
   const options = useMemo(
-    () => buildModelOptions(customModels, model),
-    [customModels, model],
+    () => buildModelOptions(presets, customModels, model),
+    [presets, customModels, model],
   )
 
   const addCustomModel = () => {
@@ -66,7 +118,7 @@ function CustomModelField({
       message.warning('请输入模型名称')
       return
     }
-    if (PRESET_MODEL_VALUES.has(value) || customModels.includes(value)) {
+    if (presetValues.has(value) || customModels.includes(value)) {
       message.warning('该模型已在列表中')
       onModelChange(value)
       setNewModel('')
@@ -125,13 +177,27 @@ function CustomModelField({
 
 export default function SystemConfigPage() {
   const [prompt, setPrompt] = useState('')
+  const [provider, setProvider] = useState<AiProvider>('dashscope')
   const [apiKey, setApiKey] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
   const [routerModel, setRouterModel] = useState('qwen-turbo')
   const [chatModel, setChatModel] = useState('qwen-plus')
   const [embeddingModel, setEmbeddingModel] = useState('text-embedding-v3')
+  const [embeddingDimensions, setEmbeddingDimensions] = useState(1024)
   const [customRouterModels, setCustomRouterModels] = useState<string[]>([])
   const [customChatModels, setCustomChatModels] = useState<string[]>([])
+  const [initialProvider, setInitialProvider] = useState<AiProvider>('dashscope')
+  const [initialEmbeddingModel, setInitialEmbeddingModel] = useState('text-embedding-v3')
+  const [initialEmbeddingDimensions, setInitialEmbeddingDimensions] = useState(1024)
   const queryClient = useQueryClient()
+
+  const chatPresets = useMemo(() => getChatPresets(provider), [provider])
+  const embeddingModels = useMemo(() => getEmbeddingModels(provider), [provider])
+  const providerDefaults = PROVIDER_DEFAULTS[provider]
+
+  const embeddingChanged = embeddingModel !== initialEmbeddingModel
+    || embeddingDimensions !== initialEmbeddingDimensions
+    || provider !== initialProvider
 
   const { data: promptData } = useQuery({
     queryKey: ['system-prompt'],
@@ -149,14 +215,33 @@ export default function SystemConfigPage() {
 
   useEffect(() => {
     if (aiConfig) {
+      const loadedProvider = (aiConfig.provider ?? 'dashscope') as AiProvider
+      setProvider(loadedProvider)
+      setInitialProvider(loadedProvider)
+      setBaseUrl(aiConfig.baseUrl ?? PROVIDER_DEFAULTS[loadedProvider].baseUrl)
       setRouterModel(aiConfig.routerModel)
       setChatModel(aiConfig.chatModel)
       setEmbeddingModel(aiConfig.embeddingModel)
+      setInitialEmbeddingModel(aiConfig.embeddingModel)
+      setEmbeddingDimensions(aiConfig.embeddingDimensions ?? PROVIDER_DEFAULTS[loadedProvider].embeddingDimensions)
+      setInitialEmbeddingDimensions(aiConfig.embeddingDimensions ?? PROVIDER_DEFAULTS[loadedProvider].embeddingDimensions)
       setCustomRouterModels(aiConfig.customRouterModels ?? [])
       setCustomChatModels(aiConfig.customChatModels ?? [])
       setApiKey('')
     }
   }, [aiConfig])
+
+  const handleProviderChange = (next: AiProvider) => {
+    const defaults = PROVIDER_DEFAULTS[next]
+    setProvider(next)
+    setRouterModel(defaults.routerModel)
+    setChatModel(defaults.chatModel)
+    setEmbeddingModel(defaults.embeddingModel)
+    setEmbeddingDimensions(defaults.embeddingDimensions)
+    setBaseUrl(defaults.baseUrl)
+    setCustomRouterModels([])
+    setCustomChatModels([])
+  }
 
   const savePromptMutation = useMutation({
     mutationFn: () => adminApi.updateSystemPrompt(prompt),
@@ -169,6 +254,9 @@ export default function SystemConfigPage() {
 
   const saveAiMutation = useMutation({
     mutationFn: () => adminApi.updateAiConfig({
+      provider,
+      baseUrl: provider === 'zhipuai' ? baseUrl : undefined,
+      embeddingDimensions,
       apiKey: apiKey.trim() || undefined,
       routerModel,
       chatModel,
@@ -179,10 +267,16 @@ export default function SystemConfigPage() {
     onSuccess: () => {
       message.success('AI 配置保存成功，已即时生效')
       setApiKey('')
+      setInitialProvider(provider)
+      setInitialEmbeddingModel(embeddingModel)
+      setInitialEmbeddingDimensions(embeddingDimensions)
       queryClient.invalidateQueries({ queryKey: ['ai-config'] })
     },
     onError: () => message.error('AI 配置保存失败'),
   })
+
+  const apiKeyLabel = provider === 'zhipuai' ? '智谱 API Key' : 'DashScope API Key'
+  const apiKeyEnvHint = provider === 'zhipuai' ? 'AI_ZHIPUAI_API_KEY' : 'AI_DASHSCOPE_API_KEY'
 
   return (
     <div>
@@ -193,9 +287,27 @@ export default function SystemConfigPage() {
         type="warning"
         showIcon
         message="API Key 安全提示"
-        description="Key 可存入数据库并在界面脱敏展示；生产环境仍建议通过环境变量 AI_DASHSCOPE_API_KEY 注入。留空 API Key 输入框表示不修改已有 Key。"
+        description={`Key 可存入数据库并在界面脱敏展示；生产环境仍建议通过环境变量 ${apiKeyEnvHint} 注入。留空 API Key 输入框表示不修改已有 Key。`}
         style={{ marginBottom: 16 }}
       />
+      {embeddingChanged && (
+        <Alert
+          type="error"
+          showIcon
+          message="Embedding 配置已变更"
+          description="已有知识库的向量是按旧厂商/维度生成的。切换 Embedding 后需对各知识库文档重新入库，否则检索会失败。"
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 8 }}>AI 厂商</div>
+        <Select
+          value={provider}
+          onChange={handleProviderChange}
+          options={PROVIDER_OPTIONS}
+          style={{ width: 280 }}
+        />
+      </div>
       <div style={{ marginBottom: 12 }}>
         <span style={{ marginRight: 8 }}>当前 Key 来源：</span>
         {aiConfig?.apiKeySource === 'db' ? (
@@ -208,7 +320,7 @@ export default function SystemConfigPage() {
         )}
       </div>
       <div style={{ marginBottom: 16 }}>
-        <div style={{ marginBottom: 8 }}>DashScope API Key</div>
+        <div style={{ marginBottom: 8 }}>{apiKeyLabel}</div>
         <Input.Password
           value={apiKey}
           onChange={e => setApiKey(e.target.value)}
@@ -216,6 +328,17 @@ export default function SystemConfigPage() {
           style={{ maxWidth: 480 }}
         />
       </div>
+      {provider === 'zhipuai' && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8 }}>智谱 Base URL（可选）</div>
+          <Input
+            value={baseUrl}
+            onChange={e => setBaseUrl(e.target.value)}
+            placeholder="https://open.bigmodel.cn/api/paas"
+            style={{ maxWidth: 480 }}
+          />
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
         <CustomModelField
           label="路由模型"
@@ -223,8 +346,9 @@ export default function SystemConfigPage() {
           onModelChange={setRouterModel}
           customModels={customRouterModels}
           onCustomModelsChange={setCustomRouterModels}
-          defaultModel="qwen-turbo"
+          defaultModel={providerDefaults.routerModel}
           inputPlaceholder="输入自定义路由模型名"
+          presets={chatPresets}
         />
         <CustomModelField
           label="对话模型"
@@ -232,17 +356,28 @@ export default function SystemConfigPage() {
           onModelChange={setChatModel}
           customModels={customChatModels}
           onCustomModelsChange={setCustomChatModels}
-          defaultModel="qwen-plus"
+          defaultModel={providerDefaults.chatModel}
           inputPlaceholder="输入自定义对话模型名"
+          presets={chatPresets}
         />
         <div>
           <div style={{ marginBottom: 8 }}>Embedding 模型</div>
           <Select
             value={embeddingModel}
             onChange={setEmbeddingModel}
-            options={EMBEDDING_MODELS}
+            options={embeddingModels}
             style={{ width: 240 }}
             showSearch
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 8 }}>Embedding 维度</div>
+          <InputNumber
+            min={128}
+            max={4096}
+            value={embeddingDimensions}
+            onChange={v => setEmbeddingDimensions(v ?? providerDefaults.embeddingDimensions)}
+            style={{ width: 160 }}
           />
         </div>
       </div>

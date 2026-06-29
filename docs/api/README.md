@@ -139,10 +139,10 @@ curl -N -X POST http://localhost:8080/api/v1/chat/stream \
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/ai-config` | 获取 AI 配置（Key 脱敏，含模型名、自定义路由/对话模型列表与 Key 来源） |
-| PUT | `/ai-config` | 更新 `{apiKey?, routerModel, chatModel, embeddingModel, customChatModels?, customRouterModels?}`；`apiKey` 留空或不传表示不修改 |
+| GET | `/ai-config` | 获取 AI 配置（含 `provider`、`baseUrl`、`embeddingDimensions`、Key 脱敏、模型名等） |
+| PUT | `/ai-config` | 更新 `{provider?, baseUrl?, embeddingDimensions?, apiKey?, routerModel, chatModel, embeddingModel, customChatModels?, customRouterModels?}`；`apiKey` 留空或不传表示不修改 |
 
-GET 返回示例：`apiKeyMasked`、`apiKeyConfigured`、`apiKeySource`（`db`/`env`）、`routerModel`、`chatModel`、`embeddingModel`、`customChatModels`、`customRouterModels`。
+GET 返回示例：`provider`（`dashscope`/`zhipuai`）、`baseUrl`、`embeddingDimensions`、`apiKeyMasked`、`apiKeyConfigured`、`apiKeySource`（`db`/`env`）、`routerModel`、`chatModel`、`embeddingModel`、`customChatModels`、`customRouterModels`。
 
 ### 召回测试
 

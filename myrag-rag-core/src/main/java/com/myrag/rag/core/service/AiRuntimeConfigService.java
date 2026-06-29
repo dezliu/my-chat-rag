@@ -2,6 +2,8 @@ package com.myrag.rag.core.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.myrag.common.ai.AiProvider;
+import com.myrag.common.config.AiProperties;
 import com.myrag.common.config.ChatProperties;
 import com.myrag.common.dto.AiConfigDto;
 import com.myrag.common.dto.AiConfigUpdateRequest;
@@ -26,30 +28,46 @@ public class AiRuntimeConfigService {
 
     private final AiRuntimeConfigRepository repository;
     private final ChatProperties chatProperties;
+    private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
 
     @Value("${spring.ai.dashscope.api-key:}")
-    private String envApiKey;
+    private String envDashScopeApiKey;
 
     @Value("${spring.ai.dashscope.embedding.options.model:text-embedding-v3}")
-    private String defaultEmbeddingModel;
+    private String defaultDashScopeEmbeddingModel;
 
     @Getter
     private volatile long configVersion = 0;
 
     public EffectiveAiConfig getEffectiveConfig() {
         AiRuntimeConfigEntity entity = findEntity();
+        AiProvider provider = resolveProvider(entity);
         String dbApiKey = entity != null ? entity.getApiKey() : null;
         boolean useDbKey = dbApiKey != null && !dbApiKey.isBlank();
-        String effectiveApiKey = useDbKey ? dbApiKey : envApiKey;
+        String effectiveApiKey = useDbKey ? dbApiKey : resolveEnvApiKey(provider);
+        String baseUrl = resolveBaseUrl(entity, provider);
 
         return new EffectiveAiConfig(
+                provider,
                 effectiveApiKey,
                 useDbKey ? "db" : "env",
-                resolveModel(entity != null ? entity.getRouterModel() : null, chatProperties.getRouterModel()),
-                resolveModel(entity != null ? entity.getChatModel() : null, chatProperties.getChatModel()),
-                resolveModel(entity != null ? entity.getEmbeddingModel() : null, defaultEmbeddingModel)
+                baseUrl,
+                resolveModel(entity != null ? entity.getRouterModel() : null,
+                        provider == AiProvider.DASHSCOPE ? chatProperties.getRouterModel() : null,
+                        provider.defaultRouterModel()),
+                resolveModel(entity != null ? entity.getChatModel() : null,
+                        provider == AiProvider.DASHSCOPE ? chatProperties.getChatModel() : null,
+                        provider.defaultChatModel()),
+                resolveModel(entity != null ? entity.getEmbeddingModel() : null,
+                        provider == AiProvider.DASHSCOPE ? defaultDashScopeEmbeddingModel : null,
+                        provider.defaultEmbeddingModel()),
+                resolveEmbeddingDimensions(entity, provider)
         );
+    }
+
+    public int getEffectiveEmbeddingDimensions() {
+        return getEffectiveConfig().embeddingDimensions();
     }
 
     public AiConfigDto toAdminDto() {
@@ -57,6 +75,9 @@ public class AiRuntimeConfigService {
         boolean configured = config.apiKey() != null && !config.apiKey().isBlank();
         AiRuntimeConfigEntity entity = findEntity();
         return AiConfigDto.builder()
+                .provider(config.provider().id())
+                .baseUrl(config.baseUrl())
+                .embeddingDimensions(config.embeddingDimensions())
                 .apiKeyMasked(ApiKeyMasker.mask(configured ? config.apiKey() : ""))
                 .apiKeyConfigured(configured)
                 .apiKeySource(config.apiKeySource())
@@ -73,8 +94,20 @@ public class AiRuntimeConfigService {
         AiRuntimeConfigEntity entity = repository.findById(AiRuntimeConfigEntity.DEFAULT_ID)
                 .orElseGet(() -> AiRuntimeConfigEntity.builder()
                         .id(AiRuntimeConfigEntity.DEFAULT_ID)
+                        .provider(AiProvider.DASHSCOPE.id())
                         .build());
 
+        if (request.getProvider() != null && !request.getProvider().isBlank()) {
+            entity.setProvider(AiProvider.from(request.getProvider()).id());
+        }
+        if (request.getBaseUrl() != null) {
+            String trimmed = request.getBaseUrl().trim();
+            entity.setBaseUrl(trimmed.isEmpty() ? null : trimmed);
+        }
+        if (request.getEmbeddingDimensions() != null) {
+            entity.setEmbeddingDimensions(request.getEmbeddingDimensions() > 0
+                    ? request.getEmbeddingDimensions() : null);
+        }
         if (request.getRouterModel() != null && !request.getRouterModel().isBlank()) {
             entity.setRouterModel(request.getRouterModel().trim());
         }
@@ -103,11 +136,48 @@ public class AiRuntimeConfigService {
         return repository.findById(AiRuntimeConfigEntity.DEFAULT_ID).orElse(null);
     }
 
-    private String resolveModel(String dbValue, String defaultValue) {
+    private AiProvider resolveProvider(AiRuntimeConfigEntity entity) {
+        if (entity != null && entity.getProvider() != null && !entity.getProvider().isBlank()) {
+            return AiProvider.from(entity.getProvider());
+        }
+        return AiProvider.from(aiProperties.getProvider());
+    }
+
+    private String resolveEnvApiKey(AiProvider provider) {
+        return provider == AiProvider.ZHIPUAI
+                ? aiProperties.getZhipuai().getApiKey()
+                : envDashScopeApiKey;
+    }
+
+    private String resolveBaseUrl(AiRuntimeConfigEntity entity, AiProvider provider) {
+        if (provider != AiProvider.ZHIPUAI) {
+            return null;
+        }
+        if (entity != null && entity.getBaseUrl() != null && !entity.getBaseUrl().isBlank()) {
+            return entity.getBaseUrl().trim();
+        }
+        String envBaseUrl = aiProperties.getZhipuai().getBaseUrl();
+        if (envBaseUrl != null && !envBaseUrl.isBlank()) {
+            return envBaseUrl.trim();
+        }
+        return provider.defaultBaseUrl();
+    }
+
+    private int resolveEmbeddingDimensions(AiRuntimeConfigEntity entity, AiProvider provider) {
+        if (entity != null && entity.getEmbeddingDimensions() != null && entity.getEmbeddingDimensions() > 0) {
+            return entity.getEmbeddingDimensions();
+        }
+        return provider.defaultEmbeddingDimensions();
+    }
+
+    private String resolveModel(String dbValue, String propertyDefault, String providerDefault) {
         if (dbValue != null && !dbValue.isBlank()) {
             return dbValue;
         }
-        return defaultValue;
+        if (propertyDefault != null && !propertyDefault.isBlank()) {
+            return propertyDefault;
+        }
+        return providerDefault;
     }
 
     private List<String> parseModelList(String json, String label) {
@@ -145,11 +215,14 @@ public class AiRuntimeConfigService {
     }
 
     public record EffectiveAiConfig(
+            AiProvider provider,
             String apiKey,
             String apiKeySource,
+            String baseUrl,
             String routerModel,
             String chatModel,
-            String embeddingModel
+            String embeddingModel,
+            int embeddingDimensions
     ) {
     }
 }

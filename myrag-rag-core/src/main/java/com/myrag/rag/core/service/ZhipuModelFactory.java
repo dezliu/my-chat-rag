@@ -1,19 +1,17 @@
 package com.myrag.rag.core.service;
 
-import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingModel;
-import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingOptions;
 import com.myrag.common.exception.MyragException;
 import com.myrag.rag.core.service.AiRuntimeConfigService.EffectiveAiConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.zhipuai.ZhiPuAiChatModel;
+import org.springframework.ai.zhipuai.api.ZhiPuAiApi;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class DashScopeModelFactory implements ProviderModelFactory {
+public class ZhipuModelFactory implements ProviderModelFactory {
 
     private final AiRuntimeConfigService configService;
 
@@ -56,30 +54,20 @@ public class DashScopeModelFactory implements ProviderModelFactory {
     private void rebuild(long version) {
         EffectiveAiConfig config = configService.getEffectiveConfig();
         if (config.apiKey() == null || config.apiKey().isBlank()) {
-            throw new MyragException(500, "DashScope API Key 未配置，请在管理后台或环境变量 AI_DASHSCOPE_API_KEY 中设置");
+            throw new MyragException(500, "智谱 API Key 未配置，请在管理后台或环境变量 AI_ZHIPUAI_API_KEY 中设置");
         }
 
-        DashScopeApi dashScopeApi = DashScopeApi.builder()
-                .apiKey(config.apiKey())
-                .build();
+        ZhiPuAiApi api = ZhipuModelSupport.buildApi(config);
 
-        routerChatModel = DashScopeChatModel.builder()
-                .dashScopeApi(DashScopeModelSupport.buildApi(config.apiKey(), config.routerModel()))
-                .defaultOptions(DashScopeModelSupport.buildChatOptions(config.routerModel(), 0.1))
-                .build();
+        routerChatModel = new ZhiPuAiChatModel(
+                api,
+                ZhipuModelSupport.buildChatOptions(config.routerModel(), 0.1));
 
-        chatChatModel = DashScopeChatModel.builder()
-                .dashScopeApi(DashScopeModelSupport.buildApi(config.apiKey(), config.chatModel()))
-                .defaultOptions(DashScopeModelSupport.buildChatOptions(config.chatModel(), null))
-                .build();
+        chatChatModel = new ZhiPuAiChatModel(
+                api,
+                ZhipuModelSupport.buildChatOptions(config.chatModel(), null));
 
-        embeddingModel = DashScopeEmbeddingModel.builder()
-                .dashScopeApi(dashScopeApi)
-                .defaultOptions(DashScopeEmbeddingOptions.builder()
-                        .withModel(config.embeddingModel())
-                        .withDimensions(config.embeddingDimensions())
-                        .build())
-                .build();
+        embeddingModel = ZhipuModelSupport.buildEmbeddingModel(api, config);
 
         cachedVersion = version;
     }

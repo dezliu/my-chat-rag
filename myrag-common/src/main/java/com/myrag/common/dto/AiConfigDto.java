@@ -12,6 +12,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiConfigDto {
+    private String provider;
+    private String baseUrl;
+    private Integer embeddingDimensions;
     private String apiKeyMasked;
     private boolean apiKeyConfigured;
     private String apiKeySource;

@@ -21,6 +21,15 @@ public class AiRuntimeConfigEntity {
     @Column(length = 36)
     private String id;
 
+    @Column(name = "provider", nullable = false, length = 32)
+    private String provider;
+
+    @Column(name = "base_url", length = 500)
+    private String baseUrl;
+
+    @Column(name = "embedding_dimensions")
+    private Integer embeddingDimensions;
+
     @Column(name = "api_key", length = 500)
     private String apiKey;
 
@@ -47,6 +56,9 @@ public class AiRuntimeConfigEntity {
     public void prePersist() {
         if (id == null) {
             id = DEFAULT_ID;
+        }
+        if (provider == null || provider.isBlank()) {
+            provider = "dashscope";
         }
     }
 }

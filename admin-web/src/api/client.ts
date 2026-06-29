@@ -42,6 +42,9 @@ export interface RagSearchResponse {
 }
 
 export interface AiConfig {
+  provider: 'dashscope' | 'zhipuai'
+  baseUrl?: string
+  embeddingDimensions: number
   apiKeyMasked: string
   apiKeyConfigured: boolean
   apiKeySource: 'db' | 'env'
@@ -53,6 +56,9 @@ export interface AiConfig {
 }
 
 export interface AiConfigUpdate {
+  provider?: 'dashscope' | 'zhipuai'
+  baseUrl?: string
+  embeddingDimensions?: number
   apiKey?: string
   routerModel: string
   chatModel: string

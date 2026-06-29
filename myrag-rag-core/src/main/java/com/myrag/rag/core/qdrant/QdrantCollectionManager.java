@@ -1,6 +1,6 @@
 package com.myrag.rag.core.qdrant;
 
-import com.myrag.common.config.HybridSearchProperties;
+import com.myrag.rag.core.service.AiRuntimeConfigService;
 import io.qdrant.client.QdrantClient;
 import io.qdrant.client.grpc.Collections;
 import io.qdrant.client.grpc.Collections.Distance;
@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutionException;
 public class QdrantCollectionManager {
 
     private final QdrantClient qdrantClient;
-    private final HybridSearchProperties hybridSearchProperties;
+    private final AiRuntimeConfigService aiRuntimeConfigService;
 
     public void ensureCollection(String collectionName) {
         try {
@@ -26,8 +26,9 @@ public class QdrantCollectionManager {
                 return;
             }
 
+            int dimensions = aiRuntimeConfigService.getEffectiveEmbeddingDimensions();
             var denseParams = VectorParams.newBuilder()
-                    .setSize(hybridSearchProperties.getEmbeddingDimensions())
+                    .setSize(dimensions)
                     .setDistance(Distance.Cosine)
                     .build();
 
