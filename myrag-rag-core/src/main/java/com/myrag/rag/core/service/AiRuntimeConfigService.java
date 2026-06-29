@@ -55,7 +55,7 @@ public class AiRuntimeConfigService {
     public AiConfigDto toAdminDto() {
         EffectiveAiConfig config = getEffectiveConfig();
         boolean configured = config.apiKey() != null && !config.apiKey().isBlank();
-
+        AiRuntimeConfigEntity entity = findEntity();
         return AiConfigDto.builder()
                 .apiKeyMasked(ApiKeyMasker.mask(configured ? config.apiKey() : ""))
                 .apiKeyConfigured(configured)
@@ -63,7 +63,8 @@ public class AiRuntimeConfigService {
                 .routerModel(config.routerModel())
                 .chatModel(config.chatModel())
                 .embeddingModel(config.embeddingModel())
-                .customChatModels(parseCustomChatModels(findEntity()))
+                .customChatModels(parseModelList(entity != null ? entity.getCustomChatModelsJson() : null, "custom chat models"))
+                .customRouterModels(parseModelList(entity != null ? entity.getCustomRouterModelsJson() : null, "custom router models"))
                 .build();
     }
 
@@ -87,7 +88,10 @@ public class AiRuntimeConfigService {
             entity.setApiKey(request.getApiKey().trim());
         }
         if (request.getCustomChatModels() != null) {
-            entity.setCustomChatModelsJson(serializeCustomChatModels(request.getCustomChatModels()));
+            entity.setCustomChatModelsJson(serializeModelList(request.getCustomChatModels()));
+        }
+        if (request.getCustomRouterModels() != null) {
+            entity.setCustomRouterModelsJson(serializeModelList(request.getCustomRouterModels()));
         }
 
         repository.save(entity);
@@ -106,24 +110,24 @@ public class AiRuntimeConfigService {
         return defaultValue;
     }
 
-    private List<String> parseCustomChatModels(AiRuntimeConfigEntity entity) {
-        if (entity == null || entity.getCustomChatModelsJson() == null || entity.getCustomChatModelsJson().isBlank()) {
+    private List<String> parseModelList(String json, String label) {
+        if (json == null || json.isBlank()) {
             return List.of();
         }
         try {
-            List<String> models = objectMapper.readValue(entity.getCustomChatModelsJson(), new TypeReference<>() {});
+            List<String> models = objectMapper.readValue(json, new TypeReference<>() {});
             return normalizeModelNames(models);
         } catch (Exception e) {
-            log.warn("Failed to parse custom chat models json", e);
+            log.warn("Failed to parse {} json", label, e);
             return List.of();
         }
     }
 
-    private String serializeCustomChatModels(List<String> models) {
+    private String serializeModelList(List<String> models) {
         try {
             return objectMapper.writeValueAsString(normalizeModelNames(models));
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to serialize custom chat models", e);
+            throw new IllegalStateException("Failed to serialize model list", e);
         }
     }
 

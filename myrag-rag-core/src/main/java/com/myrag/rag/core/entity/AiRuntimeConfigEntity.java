@@ -36,6 +36,9 @@ public class AiRuntimeConfigEntity {
     @Column(name = "custom_chat_models_json", columnDefinition = "TEXT")
     private String customChatModelsJson;
 
+    @Column(name = "custom_router_models_json", columnDefinition = "TEXT")
+    private String customRouterModelsJson;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

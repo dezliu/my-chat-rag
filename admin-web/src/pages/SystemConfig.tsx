@@ -3,19 +3,125 @@ import { Input, Button, message, Alert, Select, Tag, Divider } from 'antd'
 import { useState, useEffect, useMemo } from 'react'
 import { adminApi } from '../api/client'
 
-const CHAT_MODELS = [
-  { value: 'qwen-turbo', label: 'qwen-turbo（路由/轻量）' },
-  { value: 'qwen-plus', label: 'qwen-plus（对话默认）' },
+const PRESET_MODELS = [
+  { value: 'qwen-turbo', label: 'qwen-turbo（轻量）' },
+  { value: 'qwen-plus', label: 'qwen-plus（默认）' },
   { value: 'qwen-max', label: 'qwen-max（高质量）' },
   { value: 'qwen-long', label: 'qwen-long（长文本）' },
 ]
 
-const PRESET_CHAT_MODEL_VALUES = new Set(CHAT_MODELS.map(m => m.value))
+const PRESET_MODEL_VALUES = new Set(PRESET_MODELS.map(m => m.value))
 
 const EMBEDDING_MODELS = [
   { value: 'text-embedding-v3', label: 'text-embedding-v3' },
   { value: 'text-embedding-v2', label: 'text-embedding-v2' },
 ]
+
+function buildModelOptions(
+  customModels: string[],
+  currentModel: string,
+) {
+  const options = [...PRESET_MODELS]
+  const seen = new Set(PRESET_MODEL_VALUES)
+  for (const model of customModels) {
+    if (!seen.has(model)) {
+      options.push({ value: model, label: `${model}（自定义）` })
+      seen.add(model)
+    }
+  }
+  if (currentModel && !seen.has(currentModel)) {
+    options.push({ value: currentModel, label: `${currentModel}（当前）` })
+  }
+  return options
+}
+
+interface CustomModelFieldProps {
+  label: string
+  model: string
+  onModelChange: (value: string) => void
+  customModels: string[]
+  onCustomModelsChange: (models: string[]) => void
+  defaultModel: string
+  inputPlaceholder: string
+}
+
+function CustomModelField({
+  label,
+  model,
+  onModelChange,
+  customModels,
+  onCustomModelsChange,
+  defaultModel,
+  inputPlaceholder,
+}: CustomModelFieldProps) {
+  const [newModel, setNewModel] = useState('')
+  const options = useMemo(
+    () => buildModelOptions(customModels, model),
+    [customModels, model],
+  )
+
+  const addCustomModel = () => {
+    const value = newModel.trim()
+    if (!value) {
+      message.warning('请输入模型名称')
+      return
+    }
+    if (PRESET_MODEL_VALUES.has(value) || customModels.includes(value)) {
+      message.warning('该模型已在列表中')
+      onModelChange(value)
+      setNewModel('')
+      return
+    }
+    onCustomModelsChange([...customModels, value])
+    onModelChange(value)
+    setNewModel('')
+    message.success(`已添加自定义模型：${value}`)
+  }
+
+  const removeCustomModel = (value: string) => {
+    onCustomModelsChange(customModels.filter(m => m !== value))
+    if (model === value) {
+      onModelChange(defaultModel)
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 8 }}>{label}</div>
+      <Select
+        value={model}
+        onChange={onModelChange}
+        options={options}
+        style={{ width: 280 }}
+        showSearch
+        optionFilterProp="label"
+      />
+      <div style={{ marginTop: 8, display: 'flex', gap: 8, maxWidth: 360 }}>
+        <Input
+          value={newModel}
+          onChange={e => setNewModel(e.target.value)}
+          placeholder={inputPlaceholder}
+          onPressEnter={addCustomModel}
+        />
+        <Button onClick={addCustomModel}>添加</Button>
+      </div>
+      {customModels.length > 0 && (
+        <div style={{ marginTop: 8, maxWidth: 360 }}>
+          {customModels.map(value => (
+            <Tag
+              key={value}
+              closable
+              onClose={() => removeCustomModel(value)}
+              style={{ marginBottom: 4 }}
+            >
+              {value}
+            </Tag>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SystemConfigPage() {
   const [prompt, setPrompt] = useState('')
@@ -23,8 +129,8 @@ export default function SystemConfigPage() {
   const [routerModel, setRouterModel] = useState('qwen-turbo')
   const [chatModel, setChatModel] = useState('qwen-plus')
   const [embeddingModel, setEmbeddingModel] = useState('text-embedding-v3')
+  const [customRouterModels, setCustomRouterModels] = useState<string[]>([])
   const [customChatModels, setCustomChatModels] = useState<string[]>([])
-  const [newCustomChatModel, setNewCustomChatModel] = useState('')
   const queryClient = useQueryClient()
 
   const { data: promptData } = useQuery({
@@ -37,21 +143,6 @@ export default function SystemConfigPage() {
     queryFn: () => adminApi.getAiConfig().then(r => r.data.data),
   })
 
-  const chatModelOptions = useMemo(() => {
-    const options = [...CHAT_MODELS]
-    const seen = new Set(PRESET_CHAT_MODEL_VALUES)
-    for (const model of customChatModels) {
-      if (!seen.has(model)) {
-        options.push({ value: model, label: `${model}（自定义）` })
-        seen.add(model)
-      }
-    }
-    if (chatModel && !seen.has(chatModel)) {
-      options.push({ value: chatModel, label: `${chatModel}（当前）` })
-    }
-    return options
-  }, [customChatModels, chatModel])
-
   useEffect(() => {
     if (promptData?.prompt) setPrompt(promptData.prompt)
   }, [promptData])
@@ -61,35 +152,11 @@ export default function SystemConfigPage() {
       setRouterModel(aiConfig.routerModel)
       setChatModel(aiConfig.chatModel)
       setEmbeddingModel(aiConfig.embeddingModel)
+      setCustomRouterModels(aiConfig.customRouterModels ?? [])
       setCustomChatModels(aiConfig.customChatModels ?? [])
       setApiKey('')
     }
   }, [aiConfig])
-
-  const addCustomChatModel = () => {
-    const model = newCustomChatModel.trim()
-    if (!model) {
-      message.warning('请输入模型名称')
-      return
-    }
-    if (PRESET_CHAT_MODEL_VALUES.has(model) || customChatModels.includes(model)) {
-      message.warning('该模型已在列表中')
-      setChatModel(model)
-      setNewCustomChatModel('')
-      return
-    }
-    setCustomChatModels(prev => [...prev, model])
-    setChatModel(model)
-    setNewCustomChatModel('')
-    message.success(`已添加自定义模型：${model}`)
-  }
-
-  const removeCustomChatModel = (model: string) => {
-    setCustomChatModels(prev => prev.filter(m => m !== model))
-    if (chatModel === model) {
-      setChatModel('qwen-plus')
-    }
-  }
 
   const savePromptMutation = useMutation({
     mutationFn: () => adminApi.updateSystemPrompt(prompt),
@@ -106,6 +173,7 @@ export default function SystemConfigPage() {
       routerModel,
       chatModel,
       embeddingModel,
+      customRouterModels,
       customChatModels,
     }),
     onSuccess: () => {
@@ -149,50 +217,24 @@ export default function SystemConfigPage() {
         />
       </div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div>
-          <div style={{ marginBottom: 8 }}>路由模型</div>
-          <Select
-            value={routerModel}
-            onChange={setRouterModel}
-            options={CHAT_MODELS}
-            style={{ width: 240 }}
-            showSearch
-          />
-        </div>
-        <div>
-          <div style={{ marginBottom: 8 }}>对话模型</div>
-          <Select
-            value={chatModel}
-            onChange={setChatModel}
-            options={chatModelOptions}
-            style={{ width: 280 }}
-            showSearch
-            optionFilterProp="label"
-          />
-          <div style={{ marginTop: 8, display: 'flex', gap: 8, maxWidth: 360 }}>
-            <Input
-              value={newCustomChatModel}
-              onChange={e => setNewCustomChatModel(e.target.value)}
-              placeholder="输入自定义对话模型名"
-              onPressEnter={addCustomChatModel}
-            />
-            <Button onClick={addCustomChatModel}>添加</Button>
-          </div>
-          {customChatModels.length > 0 && (
-            <div style={{ marginTop: 8, maxWidth: 360 }}>
-              {customChatModels.map(model => (
-                <Tag
-                  key={model}
-                  closable
-                  onClose={() => removeCustomChatModel(model)}
-                  style={{ marginBottom: 4 }}
-                >
-                  {model}
-                </Tag>
-              ))}
-            </div>
-          )}
-        </div>
+        <CustomModelField
+          label="路由模型"
+          model={routerModel}
+          onModelChange={setRouterModel}
+          customModels={customRouterModels}
+          onCustomModelsChange={setCustomRouterModels}
+          defaultModel="qwen-turbo"
+          inputPlaceholder="输入自定义路由模型名"
+        />
+        <CustomModelField
+          label="对话模型"
+          model={chatModel}
+          onModelChange={setChatModel}
+          customModels={customChatModels}
+          onCustomModelsChange={setCustomChatModels}
+          defaultModel="qwen-plus"
+          inputPlaceholder="输入自定义对话模型名"
+        />
         <div>
           <div style={{ marginBottom: 8 }}>Embedding 模型</div>
           <Select

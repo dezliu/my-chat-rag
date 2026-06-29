@@ -19,4 +19,5 @@ public class AiConfigDto {
     private String chatModel;
     private String embeddingModel;
     private List<String> customChatModels;
+    private List<String> customRouterModels;
 }
