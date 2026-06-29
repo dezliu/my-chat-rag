@@ -2,17 +2,17 @@ spring:
   application:
     name: myrag
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/myrag}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/myrag?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
     username: ${SPRING_DATASOURCE_USERNAME:myrag}
     password: ${SPRING_DATASOURCE_PASSWORD:myrag}
-    driver-class-name: org.postgresql.Driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.dialect.MySQLDialect
   flyway:
     enabled: true
     locations: classpath:db/migration

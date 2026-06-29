@@ -1,0 +1,198 @@
+# 快速启动（本地开发模式）
+
+本文档帮助你在本地以 **本地开发模式** 跑通 MyRAG：基础设施在 Docker，后端和前端在宿主机运行。
+
+> 若希望 **全部在 Docker 里一键运行**（无需安装 Java/Node），请直接看 [docker-run.md](docker-run.md)。
+
+## 两种模式对比
+
+| | Docker 一键运行 | 本地开发（本文档） |
+|--|----------------|-------------------|
+| 文档 | [docker-run.md](docker-run.md) | 本文档 |
+| Compose 文件 | `docker-compose.yml` | `docker-compose.infra.yml` |
+| 需要 Java 21 | 否 | **是** |
+| 需要 Node.js | 否 | **是**（管理前端） |
+| 启动命令 | `docker compose up -d --build` | 见下方分步说明 |
+
+---
+
+## 前置条件
+
+| 依赖 | 版本要求 | 检查命令 |
+|------|----------|----------|
+| Java | **21**（必须） | `java -version` |
+| Maven | 3.9+ | `mvn -version` |
+| Node.js | 18+ | `node -v` |
+| Docker | 最新稳定版 | `docker compose version` |
+
+> Spring Boot 3.4 不支持 Java 8/11/17，必须使用 Java 21。
+
+### 安装 Java 21（macOS Homebrew）
+
+```bash
+brew install openjdk@21
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+建议将上述 `export` 写入 `~/.zshrc`。
+
+### 获取 DashScope API Key
+
+1. 登录 [阿里云百炼控制台](https://bailian.console.aliyun.com/)
+2. 创建 API Key
+3. 记录 Key，后续填入 `.env`
+
+---
+
+## 第一步：进入项目目录
+
+```bash
+cd /path/to/myrag
+```
+
+## 第二步：启动基础设施（MySQL + Redis + Qdrant）
+
+```bash
+docker compose -f docker-compose.infra.yml up -d
+```
+
+等待容器 healthy：
+
+```bash
+docker compose -f docker-compose.infra.yml ps
+```
+
+应看到 **3 个**服务：`myrag-mysql`、`myrag-redis`、`myrag-qdrant`。
+
+> 注意：不要用 `docker compose up -d`（不带 `-f`），那会启动**完整应用栈**（含后端和前端容器），见 [docker-run.md](docker-run.md)。
+
+## 第三步：配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，至少修改：
+
+```bash
+AI_DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxx
+```
+
+加载环境变量：
+
+```bash
+export $(grep -v '^#' .env | xargs)
+```
+
+## 第四步：启动后端
+
+```bash
+# 确保 Java 21
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# 编译并启动
+mvn -pl myrag-server spring-boot:run
+```
+
+看到以下日志表示启动成功：
+
+```
+Started MyragApplication in X.XXX seconds
+```
+
+验证健康检查：
+
+```bash
+curl http://localhost:8080/actuator/health
+# 期望: {"status":"UP"}
+```
+
+## 第五步：启动管理前端
+
+**新开一个终端**：
+
+```bash
+cd admin-web
+npm install
+npm run dev
+```
+
+浏览器访问：**http://localhost:3000**
+
+前端通过 Vite 代理将 `/api` 请求转发到 `http://localhost:8080`。
+
+---
+
+## 第六步：验证功能
+
+### 1. 创建知识库
+
+管理后台 → **知识库管理** → **新建知识库**
+
+或使用 curl：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/knowledge-bases \
+  -H "Content-Type: application/json" \
+  -d '{"name":"测试知识库","description":"产品FAQ文档"}'
+```
+
+### 2. 上传文档
+
+管理后台 → **文档管理** → 选择知识库 → **上传文档**
+
+支持 `.txt`、`.md`、`.pdf`、`.docx`。
+
+### 3. 召回测试
+
+管理后台 → **召回测试** → 输入问题 → **检索**
+
+### 4. AI 对话
+
+```bash
+curl -X POST http://localhost:8080/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "test-session-001",
+    "message": "你好，请介绍一下知识库中的内容"
+  }'
+```
+
+---
+
+## 服务地址汇总
+
+| 服务 | 地址 |
+|------|------|
+| 后端 API | http://localhost:8080 |
+| 管理后台（Vite dev） | http://localhost:3000 |
+| MySQL | localhost:3306 |
+| Qdrant Dashboard | http://localhost:6333/dashboard |
+| Actuator 健康检查 | http://localhost:8080/actuator/health |
+| MCP 端点 | http://localhost:8080/mcp/message |
+
+---
+
+## 停止服务
+
+```bash
+# 停止后端 / 前端：Ctrl+C
+
+# 停止基础设施
+docker compose -f docker-compose.infra.yml down
+
+# 停止并清除数据卷（慎用，会删除数据库和向量数据）
+docker compose -f docker-compose.infra.yml down -v
+```
+
+---
+
+## 下一步
+
+- **Docker 一键运行** → [docker-run.md](docker-run.md)
+- 详细开发说明 → [local-dev.md](local-dev.md)
+- 配置项说明 → [configuration.md](configuration.md)
+- MCP 接入 Cursor → [mcp-client.md](mcp-client.md)
+- API 接口文档 → [../api/README.md](../api/README.md)

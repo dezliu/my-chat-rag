@@ -1,49 +1,94 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: myrag-postgres
+  mysql:
+    image: mysql:8.4
+    container_name: myrag-mysql
     environment:
-      POSTGRES_DB: myrag
-      POSTGRES_USER: myrag
-      POSTGRES_PASSWORD: myrag
-    ports:
-      - "5432:5432"
+      MYSQL_DATABASE: myrag
+      MYSQL_USER: myrag
+      MYSQL_PASSWORD: myrag
+      MYSQL_ROOT_PASSWORD: myrag_root
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myrag -d myrag"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pmyrag_root"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     container_name: myrag-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    restart: unless-stopped
 
   qdrant:
     image: qdrant/qdrant:v1.13.2
     container_name: myrag-qdrant
     ports:
       - "6333:6333"
-      - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:6333/readyz || exit 1"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myrag-server
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      AI_DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/myrag?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      SPRING_DATASOURCE_USERNAME: myrag
+      SPRING_DATASOURCE_PASSWORD: myrag
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_AI_VECTORSTORE_QDRANT_HOST: qdrant
+      SPRING_AI_VECTORSTORE_QDRANT_PORT: 6334
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  admin-web:
+    build:
+      context: .
+      dockerfile: admin-web/Dockerfile
+    container_name: myrag-admin-web
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
   qdrant_data:

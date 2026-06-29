@@ -58,7 +58,7 @@ coverage/
 # Docker volumes (local data)
 .docker-data/
 qdrant_storage/
-postgres_data/
+mysql_data/
 redis_data/
 
 # Codegraph

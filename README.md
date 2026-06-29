@@ -13,42 +13,44 @@
 ## 技术栈
 
 - Java 21、Spring Boot 3.4、Spring AI Alibaba 1.1.2
-- DashScope（通义）、Qdrant、PostgreSQL、Redis
+- DashScope（通义）、Qdrant、MySQL、Redis
 - React + Ant Design（管理后台）
 
 ## 快速开始
 
-### 1. 启动基础设施
+### 方式 A：Docker 一键运行（推荐）
 
 ```bash
-docker compose up -d
+cp .env.example .env   # 填入 AI_DASHSCOPE_API_KEY
+docker compose up -d --build
+# 管理后台: http://localhost:3000
 ```
 
-### 2. 配置环境变量
+详见 **[docs/deploy/docker-run.md](docs/deploy/docker-run.md)**。
+
+### 方式 B：本地开发
 
 ```bash
+docker compose -f docker-compose.infra.yml up -d
 cp .env.example .env
-# 编辑 .env，填入 AI_DASHSCOPE_API_KEY
-export $(cat .env | xargs)
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export $(grep -v '^#' .env | xargs)
+mvn -pl myrag-server spring-boot:run
+cd admin-web && npm install && npm run dev
 ```
 
-### 3. 启动后端
+详见 **[docs/deploy/quickstart.md](docs/deploy/quickstart.md)**。
 
-需要 **Java 21**：
+## 文档
 
-```bash
-export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home  # macOS Homebrew
-export AI_DASHSCOPE_API_KEY=your-key
-./mvnw -pl myrag-server spring-boot:run
-```
-
-### 4. 启动管理前端
-
-```bash
-cd admin-web
-npm install
-npm run dev
-```
+| 文档 | 说明 |
+|------|------|
+| [docs/README.md](docs/README.md) | 文档中心索引 |
+| [docs/deploy/docker-run.md](docs/deploy/docker-run.md) | Docker 一键运行 |
+| [docs/deploy/local-dev.md](docs/deploy/local-dev.md) | 本地开发指南 |
+| [docs/deploy/configuration.md](docs/deploy/configuration.md) | 环境变量与配置 |
+| [docs/plan/README.md](docs/plan/README.md) | 架构与实施计划 |
+| [docs/api/README.md](docs/api/README.md) | API 接口文档 |
 
 ## API 端点
 
@@ -60,10 +62,6 @@ npm run dev
 | `GET /api/v1/rag/knowledge-bases` | 知识库列表 |
 | `GET /api/v1/admin/**` | 管理 API |
 | `/mcp/message` | MCP 服务 |
-
-## 项目结构
-
-详见 [docs/PLAN.md](docs/PLAN.md)
 
 ## License
 

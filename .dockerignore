@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Build outputs
+**/target
+admin-web/dist
+admin-web/node_modules
+
+# Local env & data
+.env
+.docker-data
+**/*.log
+
+# Docs & cursor (not needed in image)
+.cursor
+.codegraph
+
+# Docker
+docker-compose*.yml
+Dockerfile*
