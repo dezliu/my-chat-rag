@@ -1,6 +1,25 @@
 import axios from 'axios'
+import { apolloClient } from '../apollo/client'
+import {
+  AI_CONFIG_QUERY,
+  ALERTS_QUERY,
+  CACHE_LOGS_QUERY,
+  CHAT_LOGS_QUERY,
+  CLEAR_CACHE_MUTATION,
+  CREATE_KB_MUTATION,
+  DELETE_DOCUMENT_MUTATION,
+  DELETE_KB_MUTATION,
+  DOCUMENTS_QUERY,
+  KNOWLEDGE_BASES_QUERY,
+  MONITOR_METRICS_QUERY,
+  RECALL_LOGS_QUERY,
+  RECALL_TEST_MUTATION,
+  SYSTEM_PROMPT_QUERY,
+  UPDATE_AI_CONFIG_MUTATION,
+  UPDATE_SYSTEM_PROMPT_MUTATION,
+} from '../graphql/operations'
 
-const api = axios.create({ baseURL: '/api/v1' })
+const uploadApi = axios.create({ baseURL: '/api/v1' })
 
 export interface ApiResponse<T> {
   code: number
@@ -67,33 +86,116 @@ export interface AiConfigUpdate {
   customRouterModels?: string[]
 }
 
+function ok<T>(data: T): { data: ApiResponse<T> } {
+  return { data: { code: 0, message: 'success', data } }
+}
+
 export const adminApi = {
-  listKnowledgeBases: () => api.get<ApiResponse<KnowledgeBase[]>>('/admin/knowledge-bases'),
-  createKnowledgeBase: (data: { name: string; description?: string }) =>
-    api.post<ApiResponse<KnowledgeBase>>('/admin/knowledge-bases', data),
-  deleteKnowledgeBase: (id: string) => api.delete(`/admin/knowledge-bases/${id}`),
-  listDocuments: (kbId: string) => api.get<ApiResponse<Document[]>>(`/admin/knowledge-bases/${kbId}/documents`),
+  listKnowledgeBases: async () => {
+    const result = await apolloClient.query<{ knowledgeBases: KnowledgeBase[] }>({
+      query: KNOWLEDGE_BASES_QUERY,
+    })
+    return ok(result.data.knowledgeBases)
+  },
+  createKnowledgeBase: async (data: { name: string; description?: string }) => {
+    const result = await apolloClient.mutate<{ createKnowledgeBase: KnowledgeBase }>({
+      mutation: CREATE_KB_MUTATION,
+      variables: { input: data },
+    })
+    return ok(result.data!.createKnowledgeBase)
+  },
+  deleteKnowledgeBase: async (id: string) => {
+    await apolloClient.mutate({ mutation: DELETE_KB_MUTATION, variables: { id } })
+    return ok(null)
+  },
+  listDocuments: async (kbId: string) => {
+    const result = await apolloClient.query<{ documents: Document[] }>({
+      query: DOCUMENTS_QUERY,
+      variables: { kbId },
+    })
+    return ok(result.data.documents)
+  },
   uploadDocument: (kbId: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post<ApiResponse<Document>>(`/admin/knowledge-bases/${kbId}/documents`, form)
+    return uploadApi.post<ApiResponse<Document>>(`/admin/knowledge-bases/${kbId}/documents`, form)
   },
-  deleteDocument: (docId: string) => api.delete(`/admin/documents/${docId}`),
-  getSystemPrompt: () => api.get<ApiResponse<{ prompt: string }>>('/admin/system-prompt'),
-  updateSystemPrompt: (prompt: string) => api.put('/admin/system-prompt', { prompt }),
-  getAiConfig: () => api.get<ApiResponse<AiConfig>>('/admin/ai-config'),
-  updateAiConfig: (data: AiConfigUpdate) => api.put<ApiResponse<AiConfig>>('/admin/ai-config', data),
-  recallTest: (data: { kbIds: string[]; query: string; topK?: number }) =>
-    api.post<ApiResponse<RagSearchResponse>>('/admin/recall-test', data),
-  getMetrics: () => api.get<ApiResponse<Record<string, number>>>('/admin/monitor/metrics'),
-  getRecallLogs: (page = 0, size = 20) =>
-    api.get(`/admin/monitor/recall-logs?page=${page}&size=${size}`),
-  getCacheLogs: (page = 0, size = 20) =>
-    api.get(`/admin/monitor/cache-logs?page=${page}&size=${size}`),
-  getChatLogs: (page = 0, size = 20) =>
-    api.get(`/admin/monitor/chat-logs?page=${page}&size=${size}`),
-  clearCache: () => api.delete<ApiResponse<{ deletedKeys: number }>>('/admin/monitor/cache'),
-  getAlerts: () => api.get('/admin/monitor/alerts'),
+  deleteDocument: async (docId: string) => {
+    await apolloClient.mutate({ mutation: DELETE_DOCUMENT_MUTATION, variables: { docId } })
+    return ok(null)
+  },
+  getSystemPrompt: async () => {
+    const result = await apolloClient.query<{ systemPrompt: { prompt: string } }>({
+      query: SYSTEM_PROMPT_QUERY,
+    })
+    return ok(result.data.systemPrompt)
+  },
+  updateSystemPrompt: async (prompt: string) => {
+    const result = await apolloClient.mutate<{ updateSystemPrompt: { prompt: string } }>({
+      mutation: UPDATE_SYSTEM_PROMPT_MUTATION,
+      variables: { prompt },
+    })
+    return ok(result.data!.updateSystemPrompt)
+  },
+  getAiConfig: async () => {
+    const result = await apolloClient.query<{ aiConfig: AiConfig }>({
+      query: AI_CONFIG_QUERY,
+    })
+    return ok(result.data.aiConfig)
+  },
+  updateAiConfig: async (data: AiConfigUpdate) => {
+    const result = await apolloClient.mutate<{ updateAiConfig: AiConfig }>({
+      mutation: UPDATE_AI_CONFIG_MUTATION,
+      variables: { input: data },
+    })
+    return ok(result.data!.updateAiConfig)
+  },
+  recallTest: async (data: { kbIds: string[]; query: string; topK?: number }) => {
+    const result = await apolloClient.mutate<{ recallTest: RagSearchResponse }>({
+      mutation: RECALL_TEST_MUTATION,
+      variables: { input: data },
+    })
+    return ok(result.data!.recallTest)
+  },
+  getMetrics: async () => {
+    const result = await apolloClient.query<{ monitorMetrics: Record<string, number> }>({
+      query: MONITOR_METRICS_QUERY,
+    })
+    return ok(result.data.monitorMetrics)
+  },
+  getRecallLogs: async (page = 0, size = 20) => {
+    const result = await apolloClient.query({
+      query: RECALL_LOGS_QUERY,
+      variables: { page, size },
+    })
+    return ok(result.data.recallLogs)
+  },
+  getCacheLogs: async (page = 0, size = 20) => {
+    const result = await apolloClient.query({
+      query: CACHE_LOGS_QUERY,
+      variables: { page, size },
+    })
+    return ok(result.data.cacheLogs)
+  },
+  getChatLogs: async (page = 0, size = 20) => {
+    const result = await apolloClient.query({
+      query: CHAT_LOGS_QUERY,
+      variables: { page, size },
+    })
+    return ok(result.data.chatLogs)
+  },
+  clearCache: async () => {
+    const result = await apolloClient.mutate<{ clearCache: { deletedKeys: number } }>({
+      mutation: CLEAR_CACHE_MUTATION,
+    })
+    return ok(result.data!.clearCache)
+  },
+  getAlerts: async () => {
+    const result = await apolloClient.query({
+      query: ALERTS_QUERY,
+    })
+    return ok(result.data.alerts)
+  },
 }
 
-export default api
+export default uploadApi

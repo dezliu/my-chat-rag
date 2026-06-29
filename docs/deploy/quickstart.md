@@ -13,7 +13,7 @@
 | 文档 | [docker-run.md](docker-run.md) | 本文档 |
 | Compose 文件 | `docker-compose.yml` | `docker-compose.infra.yml` |
 | 需要 Java 21 | 否 | **是** |
-| 需要 Node.js | 否 | **是**（管理前端 + 用户 H5） |
+| 需要 Node.js | 否 | **是**（管理前端 + 用户 H5 + GraphQL BFF） |
 | 启动命令 | `docker compose up -d --build` | 见下方分步说明，或 `./scripts/dev-all.sh up` |
 
 ---
@@ -24,7 +24,7 @@
 
 | 操作 | 命令 |
 |------|------|
-| 启动 / 更新后启动 | `docker compose up -d --build` |
+| 启动 / 更新后启动 | `docker compose up -d --build`（含 `graphql-bff`） |
 | 重启（不重建镜像） | `docker compose restart` |
 | 重启（重建镜像，代码变更后） | `docker compose up -d --build` |
 | 停止 | `docker compose down` |
@@ -41,9 +41,9 @@
 | 停止全部（含基础设施） | `./scripts/dev-all.sh down --infra` |
 | 查看状态 | `./scripts/dev-all.sh status` |
 
-首次使用前请完成：`cp .env.example .env`、安装 Java 21、在 `admin-web` 与 `chat-h5` 各执行一次 `npm install`。
+首次使用前请完成：`cp .env.example .env`、安装 Java 21、在 `admin-web`、`chat-h5`、`graphql-bff` 各执行一次 `npm install`。
 
-查看日志：`tail -f .dev/logs/server.log`（或 `admin-web.log` / `chat-h5.log`）。
+查看日志：`tail -f .dev/logs/server.log`（或 `graphql-bff.log` / `admin-web.log` / `chat-h5.log`）。
 
 ---
 
@@ -144,9 +144,46 @@ curl http://localhost:8080/actuator/health
 # 期望: {"status":"UP"}
 ```
 
-## 第五步：启动管理前端
+## 第五步：启动 GraphQL BFF（推荐）
 
-**新开一个终端**（保持后端终端运行）：
+在后端已就绪（第四步 health 为 UP）后，**新开终端**：
+
+```bash
+cd graphql-bff
+npm install    # 首次需要
+REST_BASE_URL=http://localhost:8080 npm run dev
+```
+
+验证：
+
+```bash
+curl -s -X POST http://localhost:4000/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"{ health }"}'
+# 期望: {"data":{"health":"ok"}}
+```
+
+浏览器可打开 Apollo Sandbox：`http://localhost:4000/graphql`
+
+示例查询：
+
+```graphql
+query {
+  knowledgeBases {
+    id
+    name
+    status
+  }
+}
+```
+
+> Docker 全栈模式下，`graphql-bff` 会随 `docker compose up` 一并启动，管理后台 nginx 已将 `/graphql` 反代到 BFF，无需单独启动。
+
+> 方案详情：[Apollo GraphQL 迁移方案](../plan/apollo-graphql-bff.md)
+
+## 第六步：启动管理前端
+
+**新开一个终端**（保持后端与 GraphQL BFF 终端运行）：
 
 ```bash
 cd admin-web
@@ -173,9 +210,9 @@ npm run dev
 | 监控 | 侧边栏「监控」 | 召回日志与质量指标 |
 | 系统配置 | 侧边栏「系统配置」 | System Prompt、AI 厂商（千问/智谱）与模型配置 |
 
-前端通过 Vite 代理将 `/api` 请求转发到 `http://localhost:8080`，无需单独配置 CORS。
+前端通过 Vite 代理将 `/api` 请求转发到 `http://localhost:8080`（文档上传等），将 `/graphql` 转发到 GraphQL BFF（`http://localhost:4000`），无需单独配置 CORS。
 
-## 第六步：启动用户 H5 聊天页
+## 第七步：启动用户 H5 聊天页
 
 ### 方式 A：本地开发（npm run dev）
 
@@ -253,7 +290,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/
 
 ---
 
-## 第七步：验证功能
+## 第八步：验证功能
 
 ### 1. 创建知识库
 
@@ -288,6 +325,22 @@ curl -X POST http://localhost:8080/api/v1/chat \
   }'
 ```
 
+### 6. GraphQL 对话（curl，需 graphql-bff 已启动）
+
+```bash
+curl -s -X POST http://localhost:4000/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "mutation Chat($input: ChatInput!) { chat(input: $input) { reply usedRag cacheHit } }",
+    "variables": {
+      "input": {
+        "sessionId": "test-session-001",
+        "message": "你好"
+      }
+    }
+  }'
+```
+
 ### 5. H5 页面对话
 
 1. 确认 **http://localhost:3001** 已打开且后端健康（`curl http://localhost:8080/actuator/health`）
@@ -301,7 +354,8 @@ curl -X POST http://localhost:8080/api/v1/chat \
 
 | 服务 | 地址 |
 |------|------|
-| 后端 API | http://localhost:8080 |
+| 后端 REST API | http://localhost:8080 |
+| GraphQL BFF（Apollo） | http://localhost:4000/graphql |
 | 管理后台（Vite dev） | http://localhost:3000 |
 | 用户 H5（Next.js dev） | http://localhost:3001 |
 | 用户 H5（Docker） | http://localhost:3001（需 `docker compose up -d chat-h5`） |
@@ -309,6 +363,8 @@ curl -X POST http://localhost:8080/api/v1/chat \
 | Qdrant Dashboard | http://localhost:6333/dashboard |
 | Actuator 健康检查 | http://localhost:8080/actuator/health |
 | MCP 端点 | http://localhost:8080/mcp/message |
+
+> 管理后台与 H5 优先走 `/graphql`（经 BFF）；文档上传与 SSE 流式聊天仍直连 `/api/v1/*` REST。
 
 ---
 
@@ -320,6 +376,8 @@ curl -X POST http://localhost:8080/api/v1/chat \
 | **http://localhost:3001 打不开** | `chat-h5` 未启动 | Docker：`docker compose up -d --build chat-h5`；本地：`cd chat-h5 && npm run dev` |
 | 3000 能访问，3001 不行 | 仅管理后台在跑，H5 需单独启动 | 见上 |
 | H5 页面能开，发消息失败 | 后端未就绪或 API Key 未配置 | `curl http://localhost:8080/actuator/health`；检查 `.env` 中 `AI_DASHSCOPE_API_KEY` |
+| 管理后台 GraphQL 报错 | graphql-bff 未启动 | `curl http://localhost:4000/graphql -d '{"query":"{ health }"}'`；本地：`cd graphql-bff && npm run dev` |
+| Docker 全栈无 GraphQL | 未重建含 BFF 的 compose | `docker compose up -d --build graphql-bff admin-web` |
 | 本地 `npm run dev` 报端口占用 | 3001 已被占用 | `lsof -i :3001` 查看并结束占用进程 |
 | Docker 构建 H5 很慢 | 首次需下载 Node 依赖并 build Next.js | 耐心等待，或改用本地 dev 模式（第六步 方式 A） |
 
@@ -355,4 +413,5 @@ docker compose -f docker-compose.infra.yml down -v
 - 详细开发说明 → [local-dev.md](local-dev.md)
 - 配置项说明 → [configuration.md](configuration.md)
 - MCP 接入 Cursor → [mcp-client.md](mcp-client.md)
-- API 接口文档 → [../api/README.md](../api/README.md)
+- API 接口文档（REST + GraphQL）→ [../api/README.md](../api/README.md)
+- Apollo GraphQL 迁移方案 → [../plan/apollo-graphql-bff.md](../plan/apollo-graphql-bff.md)

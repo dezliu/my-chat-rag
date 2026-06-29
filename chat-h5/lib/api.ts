@@ -1,19 +1,40 @@
-import type { ApiResponse, ChatRequest, ChatResponseData } from './types';
+import type { ChatRequest, ChatResponseData } from './types';
+
+const CHAT_MUTATION = `
+  mutation Chat($input: ChatInput!) {
+    chat(input: $input) {
+      sessionId
+      reply
+      usedRag
+      ragKbIds
+      cacheHit
+      routeDecision {
+        needRag
+        kbIds
+        reason
+        confidence
+      }
+    }
+  }
+`;
 
 export async function chat(request: ChatRequest): Promise<ChatResponseData> {
-  const res = await fetch('/api/v1/chat', {
+  const res = await fetch('/graphql', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
+    body: JSON.stringify({
+      query: CHAT_MUTATION,
+      variables: { input: request },
+    }),
   });
   if (!res.ok) {
-    throw new Error(`请求失败: ${res.status}`);
+    throw new Error(`GraphQL 请求失败: ${res.status}`);
   }
-  const json: ApiResponse<ChatResponseData> = await res.json();
-  if (json.code !== 0) {
-    throw new Error(json.message || '对话失败');
+  const json = await res.json();
+  if (json.errors?.length) {
+    throw new Error(json.errors[0].message || '对话失败');
   }
-  return json.data;
+  return json.data.chat as ChatResponseData;
 }
 
 export async function chatStream(

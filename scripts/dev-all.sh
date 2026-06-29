@@ -12,12 +12,12 @@ usage() {
   cat <<'EOF'
 用法: ./scripts/dev-all.sh <up|down|restart|status> [--infra]
 
-  up        启动基础设施 + 后端 + 管理前端 + 用户 H5
+  up        启动基础设施 + 后端 + GraphQL BFF + 管理前端 + 用户 H5
   down      停止宿主机应用进程；加 --infra 时同时停止 MySQL/Redis/Qdrant
   restart   重启全部应用（不停止基础设施）
   status    查看基础设施与应用状态
 
-首次使用前请: cp .env.example .env，并在 admin-web、chat-h5 各执行 npm install
+首次使用前请: cp .env.example .env，并在 admin-web、chat-h5、graphql-bff 各执行 npm install
 查看日志: tail -f .dev/logs/server.log
 EOF
 }
@@ -76,6 +76,22 @@ wait_mysql_healthy() {
   exit 1
 }
 
+wait_graphql_bff() {
+  local i
+  echo "等待 GraphQL BFF 就绪..."
+  for i in $(seq 1 30); do
+    if curl -sf http://localhost:4000/graphql \
+      -H 'Content-Type: application/json' \
+      -d '{"query":"{ health }"}' >/dev/null 2>&1; then
+      echo "GraphQL BFF 已就绪 (http://localhost:4000/graphql)"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "错误: GraphQL BFF 未在 60s 内就绪，查看 .dev/logs/graphql-bff.log" >&2
+  exit 1
+}
+
 wait_server_healthy() {
   local i
   echo "等待后端就绪..."
@@ -127,6 +143,15 @@ start_process() {
     chat-h5)
       (
         cd "$ROOT/chat-h5"
+        exec npm run dev
+      ) >"$log_file" 2>&1 &
+      ;;
+    graphql-bff)
+      (
+        cd "$ROOT/graphql-bff"
+        load_env
+        export REST_BASE_URL="${REST_BASE_URL:-http://localhost:8080}"
+        export PORT="${GRAPHQL_BFF_PORT:-4000}"
         exec npm run dev
       ) >"$log_file" 2>&1 &
       ;;
@@ -191,12 +216,15 @@ cmd_up() {
 
   start_process server
   wait_server_healthy
+  start_process graphql-bff
+  wait_graphql_bff
   start_process admin-web
   start_process chat-h5
 
   echo ""
   echo "全部服务已启动:"
-  echo "  后端 API:     http://localhost:8080"
+  echo "  后端 REST:    http://localhost:8080"
+  echo "  GraphQL BFF:  http://localhost:4000/graphql"
   echo "  管理后台:     http://localhost:3000"
   echo "  用户 H5:      http://localhost:3001"
   echo "  日志目录:     $LOG_DIR"
@@ -210,9 +238,11 @@ cmd_down() {
 
   echo "==> 停止应用进程"
   stop_pid_file server
+  stop_pid_file graphql-bff
   stop_pid_file admin-web
   stop_pid_file chat-h5
   stop_port 8080
+  stop_port 4000
   stop_port 3000
   stop_port 3001
 
@@ -242,7 +272,7 @@ cmd_status() {
 
   echo ""
   echo "==> 应用进程"
-  for name in server admin-web chat-h5; do
+  for name in server graphql-bff admin-web chat-h5; do
     local pid_file="$PID_DIR/$name.pid"
     if is_running "$pid_file"; then
       echo "  $name: running (PID $(cat "$pid_file"))"
@@ -254,6 +284,7 @@ cmd_status() {
   echo ""
   echo "==> HTTP 探测"
   echo "  http://localhost:8080/actuator/health -> $(check_http http://localhost:8080/actuator/health)"
+  echo "  http://localhost:4000/graphql (health) -> $(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:4000/graphql -H 'Content-Type: application/json' -d '{\"query\":\"{ health }\"}' 2>/dev/null || echo 000)"
   echo "  http://localhost:3000/                -> $(check_http http://localhost:3000/)"
   echo "  http://localhost:3001/                -> $(check_http http://localhost:3001/)"
 }
