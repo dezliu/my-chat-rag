@@ -186,20 +186,64 @@ docker compose ps server
 curl http://localhost:8080/actuator/health
 ```
 
-### 构建失败 `docker/dockerfile:1` 401 Unauthorized
+### 构建失败镜像拉取 401 / EOF / timeout（国内网络）
 
 错误示例：
 
 ```
-failed to resolve source metadata for docker.io/docker/dockerfile:1
+failed to resolve source metadata for docker.io/library/node:20-alpine
 ... docker.m.daocloud.io ... 401 Unauthorized
 ```
 
-原因：Dockerfile 首行 `# syntax=docker/dockerfile:1` 会额外拉取 BuildKit 前端镜像；部分国内镜像加速（如 DaoCloud）对该镜像返回 401。
+或直连 Docker Hub：
 
-处理：
-- 本项目 Dockerfile 已移除该行（普通多阶段构建不需要）
-- 或修改 Docker Desktop → Settings → Docker Engine，去掉/更换失效的 `registry-mirrors` 后重启 Docker
+```
+Head "https://registry-1.docker.io/v2/...": EOF
+context deadline exceeded
+```
+
+**原因：**
+- 配置了失效的镜像加速（如 `docker.m.daocloud.io`）→ 401
+- 清空 `registry-mirrors` 后仍无法访问 Docker Hub → EOF / 超时（国内常见）
+
+**方式一（推荐）：Docker Desktop 配置可用加速**
+
+Settings → Docker Engine，设置：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.1ms.run"
+  ]
+}
+```
+
+Apply 重启后执行 `docker compose up -d --build`。
+
+**方式二：项目 `.env` 指定镜像地址**
+
+在 `.env` 中取消注释（加速源可用 `docker.1ms.run`、`docker.1panel.live` 等，以实际可拉取为准）：
+
+```bash
+DOCKER_IMAGE_PREFIX=docker.1ms.run/library/
+MYSQL_IMAGE=docker.1ms.run/library/mysql:8.4
+REDIS_IMAGE=docker.1ms.run/library/redis:7-alpine
+QDRANT_IMAGE=docker.1ms.run/qdrant/qdrant:v1.13.2
+```
+
+然后：
+
+```bash
+docker compose build --no-cache
+docker compose up -d
+```
+
+**验证：**
+
+```bash
+docker info | grep -A3 "Registry Mirrors"
+docker pull docker.1ms.run/library/nginx:1.27-alpine
+```
 
 ### 构建失败 `mvn package`
 

@@ -1,4 +1,5 @@
-FROM node:20-alpine AS builder
+ARG DOCKER_IMAGE_PREFIX=
+FROM ${DOCKER_IMAGE_PREFIX}node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -8,7 +9,8 @@ RUN npm install
 COPY admin-web/ ./
 RUN npm run build
 
-FROM nginx:1.27-alpine
+ARG DOCKER_IMAGE_PREFIX=
+FROM ${DOCKER_IMAGE_PREFIX}nginx:1.27-alpine
 
 COPY admin-web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html

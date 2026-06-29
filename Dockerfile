@@ -1,4 +1,5 @@
-FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+ARG DOCKER_IMAGE_PREFIX=
+FROM ${DOCKER_IMAGE_PREFIX}maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 
@@ -26,7 +27,8 @@ COPY myrag-server myrag-server
 
 RUN mvn -pl myrag-server -am package -DskipTests -B
 
-FROM eclipse-temurin:21-jre-alpine
+ARG DOCKER_IMAGE_PREFIX=
+FROM ${DOCKER_IMAGE_PREFIX}eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 

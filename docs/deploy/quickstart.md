@@ -316,6 +316,7 @@ curl -X POST http://localhost:8080/api/v1/chat \
 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
+| **`docker compose build` 报 401 / `docker.m.daocloud.io`** | Docker 镜像加速失效 | Docker Desktop → Settings → Docker Engine，删除 `docker.m.daocloud.io`，Apply 重启后重试；详见 [docker-run.md#故障排查](docker-run.md#故障排查) |
 | **http://localhost:3001 打不开** | `chat-h5` 未启动 | Docker：`docker compose up -d --build chat-h5`；本地：`cd chat-h5 && npm run dev` |
 | 3000 能访问，3001 不行 | 仅管理后台在跑，H5 需单独启动 | 见上 |
 | H5 页面能开，发消息失败 | 后端未就绪或 API Key 未配置 | `curl http://localhost:8080/actuator/health`；检查 `.env` 中 `AI_DASHSCOPE_API_KEY` |

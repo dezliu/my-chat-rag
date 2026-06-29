@@ -1,4 +1,5 @@
-FROM node:20-alpine AS builder
+ARG DOCKER_IMAGE_PREFIX=
+FROM ${DOCKER_IMAGE_PREFIX}node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -10,7 +11,8 @@ COPY chat-h5/ ./
 ENV API_URL=http://server:8080
 RUN npm run build
 
-FROM node:20-alpine AS runner
+ARG DOCKER_IMAGE_PREFIX=
+FROM ${DOCKER_IMAGE_PREFIX}node:20-alpine AS runner
 
 WORKDIR /app
 
