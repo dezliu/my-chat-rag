@@ -3,6 +3,8 @@
 本文档帮助你在本地以 **本地开发模式** 跑通 MyRAG：基础设施在 Docker，后端和前端在宿主机运行。
 
 > 若希望 **全部在 Docker 里一键运行**（无需安装 Java/Node），请直接看 [docker-run.md](docker-run.md)。
+>
+> 若只想 **一条命令** 跑通全部服务，优先看下方 **一键启动 / 重启**。
 
 ## 两种模式对比
 
@@ -12,7 +14,36 @@
 | Compose 文件 | `docker-compose.yml` | `docker-compose.infra.yml` |
 | 需要 Java 21 | 否 | **是** |
 | 需要 Node.js | 否 | **是**（管理前端 + 用户 H5） |
-| 启动命令 | `docker compose up -d --build` | 见下方分步说明 |
+| 启动命令 | `docker compose up -d --build` | 见下方分步说明，或 `./scripts/dev-all.sh up` |
+
+---
+
+## 一键启动 / 重启
+
+### Docker 全栈（无需 Java/Node）
+
+| 操作 | 命令 |
+|------|------|
+| 启动 / 更新后启动 | `docker compose up -d --build` |
+| 重启（不重建镜像） | `docker compose restart` |
+| 重启（重建镜像，代码变更后） | `docker compose up -d --build` |
+| 停止 | `docker compose down` |
+
+前提：已 `cp .env.example .env` 并配置 `AI_DASHSCOPE_API_KEY`。详见 [docker-run.md](docker-run.md)。
+
+### 本地开发（infra Docker + 宿主机应用）
+
+| 操作 | 命令 |
+|------|------|
+| 启动全部 | `./scripts/dev-all.sh up` |
+| 重启全部 | `./scripts/dev-all.sh restart` |
+| 停止应用（MySQL/Redis/Qdrant 保持运行） | `./scripts/dev-all.sh down` |
+| 停止全部（含基础设施） | `./scripts/dev-all.sh down --infra` |
+| 查看状态 | `./scripts/dev-all.sh status` |
+
+首次使用前请完成：`cp .env.example .env`、安装 Java 21、在 `admin-web` 与 `chat-h5` 各执行一次 `npm install`。
+
+查看日志：`tail -f .dev/logs/server.log`（或 `admin-web.log` / `chat-h5.log`）。
 
 ---
 
@@ -54,6 +85,8 @@ cd /path/to/myrag
 ```
 
 ## 第二步：启动基础设施（MySQL + Redis + Qdrant）
+
+> 也可跳过手动步骤，直接用 `./scripts/dev-all.sh up` 一键启动全部服务。
 
 ```bash
 docker compose -f docker-compose.infra.yml up -d
@@ -294,7 +327,11 @@ curl -X POST http://localhost:8080/api/v1/chat \
 ## 停止服务
 
 ```bash
-# 本地 dev：停止后端 / 管理前端 / H5 — 在各终端按 Ctrl+C
+# 本地 dev 一键脚本
+./scripts/dev-all.sh down              # 仅停应用，保留 MySQL/Redis/Qdrant
+./scripts/dev-all.sh down --infra      # 停应用 + 基础设施
+
+# 本地 dev：手动启动时 — 在各终端按 Ctrl+C
 
 # Docker：停止 H5 容器
 docker compose stop chat-h5
